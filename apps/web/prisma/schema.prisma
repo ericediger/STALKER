@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Instrument {
+  id               String   @id
+  symbol           String   @unique
+  name             String
+  type             String   // STOCK, ETF, FUND
+  currency         String   @default("USD")
+  exchange         String
+  exchangeTz       String   @default("America/New_York")
+  providerSymbolMap String  @default("{}") // JSON stored as TEXT
+  firstBarDate     String?  // DATE (YYYY-MM-DD), nullable
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  transactions Transaction[]
+  priceBars    PriceBar[]
+  latestQuotes LatestQuote[]
+}
+
+model Transaction {
+  id           String   @id
+  instrumentId String
+  type         String   // BUY, SELL
+  quantity     Decimal  // Stored as TEXT in SQLite
+  price        Decimal  // Stored as TEXT in SQLite
+  fees         Decimal  @default(0)
+  tradeAt      DateTime // UTC
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  instrument Instrument @relation(fields: [instrumentId], references: [id])
+
+  @@index([instrumentId, tradeAt])
+  @@index([tradeAt])
+}
+
+model PriceBar {
+  id           Int      @id @default(autoincrement())
+  instrumentId String
+  provider     String
+  resolution   String   @default("1D")
+  date         String   // DATE (YYYY-MM-DD) - exchange trading date
+  time         DateTime? // UTC, for intraday bars
+  open         Decimal
+  high         Decimal
+  low          Decimal
+  close        Decimal
+  volume       Int?
+
+  instrument Instrument @relation(fields: [instrumentId], references: [id])
+
+  @@unique([instrumentId, provider, resolution, date])
+}
+
+model LatestQuote {
+  id           Int      @id @default(autoincrement())
+  instrumentId String
+  provider     String
+  price        Decimal
+  asOf         DateTime
+  fetchedAt    DateTime
+  rebuiltAt    DateTime
+
+  instrument Instrument @relation(fields: [instrumentId], references: [id])
+
+  @@unique([instrumentId, provider])
+}
+
+model PortfolioValueSnapshot {
+  id             Int      @id @default(autoincrement())
+  date           String   @unique // DATE (YYYY-MM-DD)
+  totalValue     Decimal
+  totalCostBasis Decimal
+  realizedPnl    Decimal
+  unrealizedPnl  Decimal
+  holdingsJson   String   @default("{}") // JSON stored as TEXT
+  rebuiltAt      DateTime
+}
+
+model AdvisorThread {
+  id          String   @id
+  title       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  summaryText String?
+
+  messages AdvisorMessage[]
+}
+
+model AdvisorMessage {
+  id          String   @id
+  threadId    String
+  role        String   // user, assistant, tool
+  content     String
+  toolCalls   String?  // JSON
+  toolResults String?  // JSON
+  createdAt   DateTime @default(now())
+
+  thread AdvisorThread @relation(fields: [threadId], references: [id])
+}

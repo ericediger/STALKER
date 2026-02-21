@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BOOKWORM UI Style Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ================================================================
+       BOOKWORM DESIGN TOKENS
+       ================================================================
+       NOTE: These values are approximated from component usage patterns.
+       The canonical values live in your tailwind.config.ts.
+       Update the hex values below once you extract them.
+       ================================================================ */
+
+    :root {
+      /* ── Surface System ─────────────────────────────── */
+      --surface:          #0F1A24;   /* bg-surface — deepest background */
+      --surface-raised:   #162029;   /* bg-surface-raised — cards, panels, headers */
+      --surface-overlay:  #1E2D3A;   /* bg-surface-overlay — hover states, dropdowns */
+      --surface-border:   #2A3A47;   /* border-surface-border — all borders */
+
+      /* ── Text System ────────────────────────────────── */
+      --text:             #C8D6E0;   /* text-text — primary body text */
+      --text-heading:     #E8F0F6;   /* text-text-heading — headings, emphasis */
+      --text-muted:       #8A9DAD;   /* text-text-muted — secondary text */
+      --text-subtle:      #5A6F80;   /* text-text-subtle — tertiary, timestamps */
+
+      /* ── Interactive System ─────────────────────────── */
+      --interactive:        #1E3A52;  /* bg-interactive — buttons, user bubbles */
+      --interactive-hover:  #264A66;  /* bg-interactive-hover — button hover */
+      --interactive-border: #3A6080;  /* border-interactive-border — focused inputs */
+
+      /* ── Status: Running ────────────────────────────── */
+      --status-running-fg:     #60A5FA;  /* Blue — active processes */
+      --status-running-bg:     #1A2A3D;
+      --status-running-border: #2A4A6A;
+
+      /* ── Status: Complete ───────────────────────────── */
+      --status-complete-fg:    #34D399;  /* Green — success states */
+      --status-complete-bg:    #1A2D28;
+
+      /* ── Status: Blocked ────────────────────────────── */
+      --status-blocked-fg:     #F87171;  /* Red — errors, failures */
+      --status-blocked-bg:     #2D1A1A;
+      --status-blocked-border: #5A2A2A;
+      --status-blocked-surface:#1F1515;
+
+      /* ── Status: Attention ──────────────────────────── */
+      --status-attention-fg:     #FBBF24;  /* Amber — warnings, needs action */
+      --status-attention-surface:#2A2515;
+      --status-attention-border: #5A4A1A;
+
+      /* ── Status: Paused ─────────────────────────────── */
+      --status-paused-fg:      #A78BFA;  /* Purple — paused/idle */
+
+      /* ── Focus ──────────────────────────────────────── */
+      --focus-ring:        #60A5FA;  /* Confirmed from index.css */
+
+      /* ── Scrollbar ──────────────────────────────────── */
+      --scrollbar-thumb:       #2A3A47;  /* Confirmed from index.css */
+      --scrollbar-thumb-hover: #3A4A57;  /* Confirmed from index.css */
+
+      /* ── Typography ─────────────────────────────────── */
+      --font-body:    'DM Sans', -apple-system, sans-serif;
+      --font-display: 'Crimson Pro', Georgia, serif;
+      --font-mono:    'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+      /* ── Spacing Scale (Tailwind default) ───────────── */
+      --space-1:  0.25rem;   /* 4px */
+      --space-2:  0.5rem;    /* 8px */
+      --space-3:  0.75rem;   /* 12px */
+      --space-4:  1rem;      /* 16px */
+      --space-6:  1.5rem;    /* 24px */
+      --space-8:  2rem;      /* 32px */
+
+      /* ── Border Radius ──────────────────────────────── */
+      --radius-sm:  0.25rem;  /* rounded */
+      --radius-md:  0.5rem;   /* rounded-lg */
+      --radius-lg:  0.75rem;  /* rounded-xl */
+      --radius-full: 9999px;  /* rounded-full */
+
+      /* ── Shadows ────────────────────────────────────── */
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2);
+      --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.2);
+    }
+
+    /* ── Reset & Base ──────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      font-family: var(--font-body);
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background: var(--surface);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--font-display);
+      color: var(--text-heading);
+      line-height: 1.3;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    /* ── Scrollbar ──────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+    /* ── Animations ────────────────────────────────── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .animate-spin { animation: spin 1s linear infinite; }
+    .animate-pulse-slow { animation: pulse-slow 2s ease-in-out infinite; }
+
+    /* ================================================================
+       STYLE GUIDE LAYOUT
+       ================================================================ */
+
+    .guide-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 6rem;
+    }
+
+    .guide-hero {
+      text-align: center;
+      padding: 4rem 0 3rem;
+      border-bottom: 1px solid var(--surface-border);
+      margin-bottom: 3rem;
+    }
+
+    .guide-hero h1 {
+      font-size: 2.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    .guide-hero .subtitle {
+      font-family: var(--font-body);
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      font-weight: 400;
+    }
+
+    .guide-hero .version {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.25rem 0.75rem;
+      background: var(--surface-raised);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+      font-family: var(--font-mono);
+    }
+
+    /* ── Section ───────────────────────────────────── */
+    .section {
+      margin-bottom: 4rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .section-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .section-header .section-num {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--status-running-fg);
+      opacity: 0.7;
+    }
+
+    .section-desc {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      max-width: 680px;
+      font-size: 0.95rem;
+    }
+
+    .subsection {
+      margin-bottom: 2rem;
+    }
+
+    .subsection h3 {
+      font-size: 1.1rem;
+      font-weight: 500;
+      margin-bottom: 0.75rem;
+      color: var(--text-heading);
+    }
+
+    .subsection h4 {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    /* ── Specimen Grids ────────────────────────────── */
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .swatch {
+      background: var(--surface-raised);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .swatch-color {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .swatch-label {
+      padding: 0.5rem 0.75rem;
+      border-top: 1px solid var(--surface-border);
+    }
+
+    .swatch-label .token {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: block;
+      margin-bottom: 0.15rem;
+    }
+
+    .swatch-label .hex {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-subtle);
+    }
+
+    .swatch-label .usage {
+      font-size: 0.72rem;
+      color: var(--text-subtle);
+      margin-top: 0.2rem;
+    }
+
+    /* ── Component Specimens ───────────────────────── */
+    .specimen-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .specimen {
+      background: var(--surface-raised);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .specimen-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── Code Blocks ───────────────────────────────── */
+    .code-block {
+      background: var(--surface-overlay);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.7;
+      color: var(--text);
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+
+    .code-block .comment { color: var(--text-subtle); }
+    .code-block .key { color: var(--status-running-fg); }
+    .code-block .value { color: var(--status-complete-fg); }
+    .code-block .string { color: var(--status-attention-fg); }
+
+    /* ── Table ─────────────────────────────────────── */
+    .ref-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .ref-table th {
+      text-align: left;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem 0.5rem 0;
+      border-bottom: 1px solid var(--surface-border);
+      font-size: 0.8rem;
+    }
+
+    .ref-table td {
+      padding: 0.5rem 1rem 0.5rem 0;
+      border-bottom: 1px solid rgba(42, 58, 71, 0.4);
+      vertical-align: top;
+    }
+
+    .ref-table code {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: var(--surface-overlay);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--status-running-fg);
+    }
+
+    /* ── Inline tag ────────────────────────────────── */
+    .tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      background: var(--surface-overlay);
+      color: var(--text-muted);
+    }
+
+    /* ── Note callouts ─────────────────────────────── */
+    .note {
+      background: var(--status-running-bg);
+      border-left: 3px solid var(--status-running-fg);
+      padding: 0.75rem 1rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      margin: 1rem 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .note strong { color: var(--status-running-fg); }
+
+    .note.warning {
+      background: var(--status-attention-surface);
+      border-left-color: var(--status-attention-fg);
+    }
+    .note.warning strong { color: var(--status-attention-fg); }
+
+    /* ── TOC ───────────────────────────────────────── */
+    .toc {
+      background: var(--surface-raised);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .toc h3 {
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .toc-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 0.25rem 2rem;
+    }
+
+    .toc-list li {
+      font-size: 0.85rem;
+    }
+
+    .toc-list a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .toc-list a:hover {
+      color: var(--status-running-fg);
+    }
+
+    .toc-list .num {
+      font-family: var(--font-mono);
+      color: var(--text-subtle);
+      font-size: 0.75rem;
+      margin-right: 0.5rem;
+    }
+
+    /* ── Inline examples ───────────────────────────── */
+    .type-specimen {
+      margin-bottom: 0.75rem;
+    }
+
+    .type-specimen .meta {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-subtle);
+      margin-top: 0.15rem;
+    }
+
+    /* ── Button specimens ──────────────────────────── */
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font-body);
+      line-height: 1.4;
+    }
+
+    .btn-interactive {
+      background: var(--interactive);
+      color: var(--text);
+    }
+    .btn-interactive:hover { background: var(--interactive-hover); }
+
+    .btn-complete {
+      background: var(--status-complete-bg);
+      color: var(--status-complete-fg);
+    }
+    .btn-complete:hover { opacity: 0.9; }
+
+    .btn-outline {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+    }
+    .btn-outline:hover { background: var(--surface-overlay); }
+
+    .btn-danger {
+      background: #dc2626;
+      color: #fff;
+    }
+    .btn-danger:hover { background: #b91c1c; }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ── Status dots ───────────────────────────────── */
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-running { background: var(--status-running-fg); animation: pulse-slow 2s ease-in-out infinite; }
+    .dot-complete { background: var(--status-complete-fg); }
+    .dot-blocked { background: var(--status-blocked-fg); }
+    .dot-attention { background: var(--status-attention-fg); }
+    .dot-paused { background: var(--status-paused-fg); }
+    .dot-pending { background: var(--text-subtle); }
+
+    /* ── Badge specimens ───────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+    }
+
+    .badge-running {
+      background: var(--status-running-bg);
+      border-color: var(--status-running-border);
+      color: var(--status-running-fg);
+    }
+
+    .badge-complete {
+      background: var(--status-complete-bg);
+      color: var(--status-complete-fg);
+    }
+
+    .badge-blocked {
+      background: var(--status-blocked-bg);
+      color: var(--status-blocked-fg);
+    }
+
+    .badge-attention {
+      background: var(--status-attention-surface);
+      border-color: var(--status-attention-border);
+      color: var(--status-attention-fg);
+    }
+
+    .badge-neutral {
+      background: var(--surface);
+      border-color: var(--surface-border);
+      color: var(--text-muted);
+    }
+
+    /* ── Chat bubbles ──────────────────────────────── */
+    .chat-demo {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .chat-msg {
+      max-width: 80%;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .chat-user {
+      background: var(--interactive);
+      color: var(--text);
+      align-self: flex-end;
+    }
+
+    .chat-assistant {
+      background: var(--surface-overlay);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+      align-self: flex-start;
+    }
+
+    /* ── Card specimen ─────────────────────────────── */
+    .card-specimen {
+      background: var(--surface-raised);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+
+    .card-specimen:hover {
+      background: var(--surface-overlay);
+    }
+
+    /* ── Input specimen ────────────────────────────── */
+    .input-specimen {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-family: var(--font-body);
+      transition: border-color 0.15s;
+    }
+
+    .input-specimen::placeholder { color: var(--text-subtle); }
+    .input-specimen:focus {
+      outline: none;
+      border-color: var(--interactive-border);
+    }
+
+    /* ── Progress bar ──────────────────────────────── */
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: var(--surface-overlay);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--status-complete-fg);
+      border-radius: 9999px;
+      transition: width 0.5s ease;
+    }
+
+    /* ── Spacing visualization ─────────────────────── */
+    .spacing-blocks {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .spacing-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .spacing-box {
+      background: var(--status-running-fg);
+      opacity: 0.25;
+      border-radius: 2px;
+    }
+
+    .spacing-block .label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-subtle);
+    }
+
+    /* ── Responsive grid ───────────────────────────── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 700px) {
+      .two-col { grid-template-columns: 1fr; }
+      .swatch-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    }
+
+    /* ── Floating widget demo ──────────────────────── */
+    .fab-demo {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--interactive);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-lg);
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s;
+      border: none;
+      color: var(--text);
+    }
+
+    .fab-demo:hover {
+      transform: scale(1.05);
+      background: var(--interactive-hover);
+    }
+
+    /* ── Divider ───────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--surface-border);
+      margin: 2rem 0;
+    }
+
+    /* ── Header specimen ───────────────────────────── */
+    .header-specimen {
+      background: var(--surface-raised);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .back-btn {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .back-btn:hover { background: var(--interactive); }
+
+    /* ── SVG icons (inline simplified) ─────────────── */
+    .icon { width: 1em; height: 1em; vertical-align: -0.125em; }
+    .icon-sm { width: 14px; height: 14px; }
+    .icon-md { width: 20px; height: 20px; }
+  </style>
+</head>
+<body>
+
+<div class="guide-container">
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       HERO
+       ══════════════════════════════════════════════════════════════════ -->
+  <div class="guide-hero">
+    <h1>BOOKWORM</h1>
+    <p class="subtitle">UI Design System &amp; Style Guide</p>
+    <span class="version">v1.0 · February 2026 · Dark Theme</span>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       TABLE OF CONTENTS
+       ══════════════════════════════════════════════════════════════════ -->
+  <nav class="toc">
+    <h3>Contents</h3>
+    <ul class="toc-list">
+      <li><a href="#design-principles"><span class="num">01</span>Design Principles</a></li>
+      <li><a href="#typography"><span class="num">02</span>Typography</a></li>
+      <li><a href="#colors"><span class="num">03</span>Color System</a></li>
+      <li><a href="#surfaces"><span class="num">04</span>Surface &amp; Elevation</a></li>
+      <li><a href="#status"><span class="num">05</span>Status System</a></li>
+      <li><a href="#components"><span class="num">06</span>Components</a></li>
+      <li><a href="#layout"><span class="num">07</span>Layout Patterns</a></li>
+      <li><a href="#motion"><span class="num">08</span>Motion &amp; Animation</a></li>
+      <li><a href="#icons"><span class="num">09</span>Iconography</a></li>
+      <li><a href="#markdown"><span class="num">10</span>Markdown Rendering</a></li>
+      <li><a href="#tech-stack"><span class="num">11</span>Tech Stack</a></li>
+      <li><a href="#token-ref"><span class="num">12</span>Token Reference</a></li>
+    </ul>
+  </nav>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       01 · DESIGN PRINCIPLES
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="design-principles">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>Design Principles</h2>
+    </div>
+
+    <p class="section-desc">
+      Bookworm is a professional writing-pipeline tool. Its UI is functional, information-dense, and calm. Every design decision serves one goal: help the author see where their book is and what to do next.
+    </p>
+
+    <div class="two-col" style="margin-top: 1.5rem;">
+      <div class="specimen">
+        <div class="specimen-label">Principle 1</div>
+        <h3 style="margin-bottom: 0.4rem;">Status at a Glance</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          Color-coded status signals (running, complete, blocked, attention, paused) are the primary visual language. A user should know the state of their pipeline in under 2 seconds.
+        </p>
+      </div>
+      <div class="specimen">
+        <div class="specimen-label">Principle 2</div>
+        <h3 style="margin-bottom: 0.4rem;">Progressive Disclosure</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          Accordion phase blocks show only the active phase. Collapsed blocks display a one-line summary. Detail is available on demand, never forced.
+        </p>
+      </div>
+      <div class="specimen">
+        <div class="specimen-label">Principle 3</div>
+        <h3 style="margin-bottom: 0.4rem;">Dark &amp; Focused</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          Deep dark surfaces minimize visual noise and let status colors pop. Elevated surfaces (cards, headers) use a subtle lighter shade rather than shadows, keeping the feel flat and modern.
+        </p>
+      </div>
+      <div class="specimen">
+        <div class="specimen-label">Principle 4</div>
+        <h3 style="margin-bottom: 0.4rem;">Bookish Character</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          The serif display font (Crimson Pro) grounds the product in its literary domain. Headings feel editorial. Body text (DM Sans) is clean and highly readable on dark backgrounds.
+        </p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       02 · TYPOGRAPHY
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="typography">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Typography</h2>
+    </div>
+
+    <p class="section-desc">
+      Two-font system: a serif display face for headings and a geometric sans for body. Monospace for code, data, and technical metadata.
+    </p>
+
+    <div class="subsection">
+      <h4>Display · Crimson Pro</h4>
+      <div class="type-specimen">
+        <p style="font-family: var(--font-display); font-size: 2rem; font-weight: 600; color: var(--text-heading);">Research Platform</p>
+        <p class="meta">font-display · 2rem/600 · Page titles, hero headings</p>
+      </div>
+      <div class="type-specimen">
+        <p style="font-family: var(--font-display); font-size: 1.125rem; font-weight: 500; color: var(--text-heading);">Project Advisor</p>
+        <p class="meta">font-display · 1.125rem/500 · Section headings, panel titles (text-lg)</p>
+      </div>
+      <div class="type-specimen">
+        <p style="font-family: var(--font-display); font-size: 1rem; font-weight: 500; color: var(--text-heading);">Chapter 7: The Market Shift</p>
+        <p class="meta">font-display · 1rem/500 · Card titles, inline headings</p>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>Body · DM Sans</h4>
+      <div class="type-specimen">
+        <p style="font-size: 0.875rem; color: var(--text);">Primary body text at 14px. Used for paragraph content, descriptions, and all general interface text. Leading is relaxed for readability on dark backgrounds.</p>
+        <p class="meta">font-body · 0.875rem/400 · text-sm leading-relaxed — default for all body text</p>
+      </div>
+      <div class="type-specimen">
+        <p style="font-size: 0.875rem; color: var(--text-muted);">Secondary text in muted tone. Labels, metadata, subtitles, chapter counts.</p>
+        <p class="meta">font-body · 0.875rem/400 · text-text-muted</p>
+      </div>
+      <div class="type-specimen">
+        <p style="font-size: 0.75rem; color: var(--text-subtle);">Subtle text for timestamps, hints, tertiary info. Updated 3h ago</p>
+        <p class="meta">font-body · 0.75rem/400 · text-text-subtle (text-xs)</p>
+      </div>
+      <div class="type-specimen">
+        <p style="font-size: 0.875rem; font-weight: 500; color: var(--text-heading);">Medium-weight emphasis for buttons, labels, strong inline text.</p>
+        <p class="meta">font-body · 0.875rem/500 · font-medium text-text-heading</p>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>Monospace</h4>
+      <div class="type-specimen">
+        <p style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text);">const status = 'running'; // pipeline-utils.ts:42</p>
+        <p class="meta">font-mono · 0.75rem — code blocks, technical metadata, version numbers</p>
+      </div>
+      <div class="type-specimen">
+        <span style="font-family: var(--font-mono); font-size: 0.75rem; padding: 0.1rem 0.4rem; background: var(--surface-overlay); border-radius: 3px; color: var(--status-running-fg);">inline-code</span>
+        <p class="meta" style="margin-top: 0.3rem;">Inline code highlight — bg-surface-overlay, text-status-running-fg</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>Font loading:</strong> Both Google Fonts are loaded via <code style="font-size: 0.8rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">&lt;link&gt;</code> in index.html. Fallbacks: DM Sans → -apple-system → sans-serif. Crimson Pro → Georgia → serif.
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       03 · COLOR SYSTEM
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="colors">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Color System</h2>
+    </div>
+
+    <p class="section-desc">
+      All colors are consumed via semantic Tailwind tokens — never raw hex. The token names encode both purpose and role (foreground, background, border). This makes the dark theme consistent and any future light theme a token-swap away.
+    </p>
+
+    <div class="note warning">
+      <strong>Action needed:</strong> The hex values below are approximated from CSS hints and component context. Extract the canonical values from <code style="font-size: 0.8rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">tailwind.config.ts</code> and update this guide.
+    </div>
+
+    <div class="subsection">
+      <h4>Surface Palette</h4>
+      <div class="swatch-grid">
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface);"></div>
+          <div class="swatch-label">
+            <span class="token">bg-surface</span>
+            <span class="hex">#0F1A24 (approx)</span>
+            <p class="usage">Page background, deepest layer</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface-raised);"></div>
+          <div class="swatch-label">
+            <span class="token">bg-surface-raised</span>
+            <span class="hex">#162029 (approx)</span>
+            <p class="usage">Cards, headers, panels, modals</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface-overlay);"></div>
+          <div class="swatch-label">
+            <span class="token">bg-surface-overlay</span>
+            <span class="hex">#1E2D3A (approx)</span>
+            <p class="usage">Hover states, code blocks, dropdowns</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface-border);"></div>
+          <div class="swatch-label">
+            <span class="token">border-surface-border</span>
+            <span class="hex">#2A3A47 ✓ confirmed</span>
+            <p class="usage">All borders, dividers, separators</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>Text Palette</h4>
+      <div class="swatch-grid">
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface-raised); display:flex; align-items:center; justify-content:center;">
+            <span style="color: var(--text-heading); font-size: 1rem; font-weight: 600;">Heading</span>
+          </div>
+          <div class="swatch-label">
+            <span class="token">text-text-heading</span>
+            <span class="hex">#E8F0F6 (approx)</span>
+            <p class="usage">Headings, strong emphasis, titles</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface-raised); display:flex; align-items:center; justify-content:center;">
+            <span style="color: var(--text); font-size: 0.9rem;">Body text</span>
+          </div>
+          <div class="swatch-label">
+            <span class="token">text-text</span>
+            <span class="hex">#C8D6E0 (approx)</span>
+            <p class="usage">Primary body, button labels</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface-raised); display:flex; align-items:center; justify-content:center;">
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Muted label</span>
+          </div>
+          <div class="swatch-label">
+            <span class="token">text-text-muted</span>
+            <span class="hex">#8A9DAD (approx)</span>
+            <p class="usage">Secondary text, descriptions, metadata</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface-raised); display:flex; align-items:center; justify-content:center;">
+            <span style="color: var(--text-subtle); font-size: 0.8rem;">Subtle hint</span>
+          </div>
+          <div class="swatch-label">
+            <span class="token">text-text-subtle</span>
+            <span class="hex">#5A6F80 (approx)</span>
+            <p class="usage">Timestamps, placeholders, hints</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>Interactive Palette</h4>
+      <div class="swatch-grid">
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--interactive);"></div>
+          <div class="swatch-label">
+            <span class="token">bg-interactive</span>
+            <span class="hex">#1E3A52 (approx)</span>
+            <p class="usage">Buttons, user chat bubbles, back arrows hover</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--interactive-hover);"></div>
+          <div class="swatch-label">
+            <span class="token">bg-interactive-hover</span>
+            <span class="hex">#264A66 (approx)</span>
+            <p class="usage">Button hover, FAB hover</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: var(--surface); border: 2px solid var(--interactive-border);"></div>
+          <div class="swatch-label">
+            <span class="token">border-interactive-border</span>
+            <span class="hex">#3A6080 (approx)</span>
+            <p class="usage">Input focus border, "New Project" button border</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       04 · SURFACE & ELEVATION
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="surfaces">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Surface &amp; Elevation</h2>
+    </div>
+
+    <p class="section-desc">
+      Bookworm uses a 3-tier surface system instead of drop shadows. Higher elements are lighter. Shadows are reserved for floating elements (FAB, modals, slide-out panels).
+    </p>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+      <div style="flex: 1; min-width: 200px; padding: 2rem; background: var(--surface); border: 1px dashed var(--surface-border); border-radius: var(--radius-md); text-align: center;">
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-subtle);">Layer 0</span><br>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">bg-surface</span><br>
+        <span style="font-size: 0.75rem; color: var(--text-subtle);">Page background</span>
+      </div>
+      <div style="flex: 1; min-width: 200px; padding: 2rem; background: var(--surface-raised); border: 1px solid var(--surface-border); border-radius: var(--radius-md); text-align: center;">
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-subtle);">Layer 1</span><br>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">bg-surface-raised</span><br>
+        <span style="font-size: 0.75rem; color: var(--text-subtle);">Cards, headers, inputs</span>
+      </div>
+      <div style="flex: 1; min-width: 200px; padding: 2rem; background: var(--surface-overlay); border: 1px solid var(--surface-border); border-radius: var(--radius-md); text-align: center;">
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-subtle);">Layer 2</span><br>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">bg-surface-overlay</span><br>
+        <span style="font-size: 0.75rem; color: var(--text-subtle);">Hover, code blocks, tooltips</span>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>When to Use Shadows</h4>
+      <table class="ref-table">
+        <thead>
+          <tr><th>Element</th><th>Shadow</th><th>Token</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Cards, phase blocks</td><td>None — border only</td><td><code>border-surface-border</code></td></tr>
+          <tr><td>Sticky headers</td><td>None — border-bottom only</td><td><code>border-b border-surface-border</code></td></tr>
+          <tr><td>Floating Action Button</td><td>Large shadow</td><td><code>shadow-lg</code></td></tr>
+          <tr><td>Slide-out panel</td><td>Extra-large shadow</td><td><code>shadow-2xl</code></td></tr>
+          <tr><td>Delete confirmation modal</td><td>Extra-large shadow</td><td><code>shadow-xl</code></td></tr>
+          <tr><td>Backdrop</td><td>—</td><td><code>bg-black/30</code> (panel) or <code>bg-black/60</code> (modal)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <h4>Border Radius Scale</h4>
+      <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.5rem;">
+        <div style="text-align: center;">
+          <div style="width: 60px; height: 40px; background: var(--surface-overlay); border: 1px solid var(--surface-border); border-radius: var(--radius-sm);"></div>
+          <p style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-subtle); margin-top: 0.3rem;">rounded<br>4px</p>
+        </div>
+        <div style="text-align: center;">
+          <div style="width: 60px; height: 40px; background: var(--surface-overlay); border: 1px solid var(--surface-border); border-radius: var(--radius-md);"></div>
+          <p style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-subtle); margin-top: 0.3rem;">rounded-lg<br>8px</p>
+        </div>
+        <div style="text-align: center;">
+          <div style="width: 60px; height: 40px; background: var(--surface-overlay); border: 1px solid var(--surface-border); border-radius: var(--radius-lg);"></div>
+          <p style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-subtle); margin-top: 0.3rem;">rounded-xl<br>12px</p>
+        </div>
+        <div style="text-align: center;">
+          <div style="width: 40px; height: 40px; background: var(--surface-overlay); border: 1px solid var(--surface-border); border-radius: var(--radius-full);"></div>
+          <p style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-subtle); margin-top: 0.3rem;">rounded-full<br>pill / circle</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       05 · STATUS SYSTEM
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="status">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>Status System</h2>
+    </div>
+
+    <p class="section-desc">
+      Five status states form the core visual vocabulary. Each has a foreground color (text/icon), a tinted background, and a border. These are the most important colors in the entire system — they tell the user what needs attention.
+    </p>
+
+    <div class="swatch-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+      <!-- Running -->
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--status-running-bg); display: flex; align-items: center; justify-content: center; gap: 0.5rem; border: 1px solid var(--status-running-border); border-bottom: none;">
+          <span class="dot dot-running"></span>
+          <span style="color: var(--status-running-fg); font-size: 0.85rem; font-weight: 500;">Running</span>
+        </div>
+        <div class="swatch-label">
+          <span class="token">status-running-*</span>
+          <span class="hex">FG: #60A5FA ✓ · BG: tinted blue · Border: darker blue</span>
+          <p class="usage">Active processes, in-progress tasks, spinner accents, link color</p>
+        </div>
+      </div>
+      <!-- Complete -->
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--status-complete-bg); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          <span class="dot dot-complete"></span>
+          <span style="color: var(--status-complete-fg); font-size: 0.85rem; font-weight: 500;">Complete</span>
+        </div>
+        <div class="swatch-label">
+          <span class="token">status-complete-*</span>
+          <span class="hex">FG: #34D399 · BG: tinted green</span>
+          <p class="usage">Success, completed stages, "Mark Complete", "Generate Manifesto"</p>
+        </div>
+      </div>
+      <!-- Blocked -->
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--status-blocked-bg); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          <span class="dot dot-blocked"></span>
+          <span style="color: var(--status-blocked-fg); font-size: 0.85rem; font-weight: 500;">Blocked</span>
+        </div>
+        <div class="swatch-label">
+          <span class="token">status-blocked-*</span>
+          <span class="hex">FG: #F87171 · BG: tinted red</span>
+          <p class="usage">Errors, failures, destructive warnings, delete text</p>
+        </div>
+      </div>
+      <!-- Attention -->
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--status-attention-surface); display: flex; align-items: center; justify-content: center; gap: 0.5rem; border: 1px solid var(--status-attention-border); border-bottom: none;">
+          <span class="dot dot-attention"></span>
+          <span style="color: var(--status-attention-fg); font-size: 0.85rem; font-weight: 500;">Attention</span>
+        </div>
+        <div class="swatch-label">
+          <span class="token">status-attention-*</span>
+          <span class="hex">FG: #FBBF24 · Surface: tinted amber</span>
+          <p class="usage">Needs user action, unsaved changes, "X need attention" count</p>
+        </div>
+      </div>
+      <!-- Paused -->
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--surface-raised); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          <span class="dot dot-paused"></span>
+          <span style="color: var(--status-paused-fg); font-size: 0.85rem; font-weight: 500;">Paused</span>
+        </div>
+        <div class="swatch-label">
+          <span class="token">status-paused-fg</span>
+          <span class="hex">FG: #A78BFA</span>
+          <p class="usage">Paused/idle status dots. No tinted bg currently defined.</p>
+        </div>
+      </div>
+      <!-- Pending -->
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--surface-raised); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          <span class="dot dot-pending"></span>
+          <span style="color: var(--text-subtle); font-size: 0.85rem; font-weight: 500;">Pending</span>
+        </div>
+        <div class="swatch-label">
+          <span class="token">text-subtle</span>
+          <span class="hex">FG: same as text-subtle</span>
+          <p class="usage">Not yet started. Uses the neutral subtle gray — no special status color.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="subsection" style="margin-top: 1.5rem;">
+      <h4>Status Dot Classes (from index.css)</h4>
+      <div class="code-block">
+<span class="comment">/* Base dot: 8×8px circle */</span>
+<span class="key">.status-dot</span>          { <span class="value">@apply w-2 h-2 rounded-full</span> }
+
+<span class="key">.status-dot-running</span>  { <span class="value">@apply bg-status-running-fg animate-pulse-slow</span> }
+<span class="key">.status-dot-attention</span>{ <span class="value">@apply bg-status-attention-fg</span> }
+<span class="key">.status-dot-complete</span> { <span class="value">@apply bg-status-complete-fg</span> }
+<span class="key">.status-dot-pending</span>  { <span class="value">@apply bg-text-subtle</span> }
+<span class="key">.status-dot-paused</span>   { <span class="value">@apply bg-status-paused-fg</span> }
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       06 · COMPONENTS
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="components">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2>Components</h2>
+    </div>
+
+    <p class="section-desc">
+      Core UI building blocks extracted from the codebase. All components are React + Tailwind. Lucide React provides the icon set.
+    </p>
+
+    <!-- Buttons -->
+    <div class="subsection">
+      <h3>Buttons</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">Four button variants, all with <code style="font-size: 0.75rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">rounded-lg</code>, <code style="font-size: 0.75rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">text-sm font-medium</code>, and a 150ms transition.</p>
+
+      <div class="btn-row" style="margin-bottom: 1rem;">
+        <button class="btn btn-interactive">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          New Project
+        </button>
+        <button class="btn btn-complete">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          Mark Complete
+        </button>
+        <button class="btn btn-outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Download
+        </button>
+        <button class="btn btn-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          Delete Permanently
+        </button>
+        <button class="btn btn-interactive" disabled>Disabled</button>
+      </div>
+
+      <table class="ref-table">
+        <thead>
+          <tr><th>Variant</th><th>Background</th><th>Text</th><th>Use Case</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Interactive</td><td><code>bg-interactive</code></td><td><code>text-text</code></td><td>Primary actions: New Project, Save, Send</td></tr>
+          <tr><td>Complete</td><td><code>bg-status-complete-bg</code></td><td><code>status-complete-fg</code></td><td>Positive finalization: Mark Complete, Generate Manifesto, Submit to Research</td></tr>
+          <tr><td>Outline</td><td><code>bg-surface</code> + border</td><td><code>text-text</code></td><td>Secondary actions: Download, Cancel</td></tr>
+          <tr><td>Danger</td><td><code>bg-red-600</code> (hard)</td><td><code>white</code></td><td>Destructive: Delete Permanently (only in confirmation modals)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Badges -->
+    <div class="subsection">
+      <h3>Status Badges</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Small inline indicators used on project cards and chapter rows. Pill-shaped with icon + label.
+      </p>
+      <div class="btn-row">
+        <span class="badge badge-running">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+          Research
+        </span>
+        <span class="badge badge-complete">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          Ready
+        </span>
+        <span class="badge badge-attention">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          3 need attention
+        </span>
+        <span class="badge badge-neutral">Not Started</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Input -->
+    <div class="subsection">
+      <h3>Text Input</h3>
+      <div class="two-col">
+        <div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Default state</p>
+          <input class="input-specimen" type="text" placeholder="Enter book title..." />
+        </div>
+        <div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">With value</p>
+          <input class="input-specimen" type="text" value="Privacy in the Age of AI" />
+        </div>
+      </div>
+      <div class="code-block" style="margin-top: 0.75rem;">
+<span class="comment">/* Standard input recipe */</span>
+className="<span class="key">bg-surface border border-surface-border rounded-lg</span>
+  <span class="key">text-text placeholder:text-text-subtle</span>
+  <span class="key">focus:outline-none focus:border-interactive-border</span>"
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Cards -->
+    <div class="subsection">
+      <h3>Project Card</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Clickable card used on the BookList page. Hover lifts to <code style="font-size: 0.75rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">surface-overlay</code>.
+      </p>
+      <div class="card-specimen" style="max-width: 560px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <h3 style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 500; color: var(--text-heading); margin-bottom: 0.4rem;">
+              Leadership Org Pitfalls
+            </h3>
+            <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+              <span class="badge badge-running" style="font-size: 0.7rem;">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                Research
+              </span>
+              <span>8 / 15 chapters</span>
+              <span style="color: var(--status-attention-fg); display: flex; align-items: center; gap: 0.25rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                2 need attention
+              </span>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 0.75rem; color: var(--text-subtle);">Updated 3h ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Chat Bubbles -->
+    <div class="subsection">
+      <h3>Chat Messages</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Used in BrainstormingChat and AdvisorPanel. User messages align right with interactive bg. Assistant messages align left with border.
+      </p>
+      <div class="chat-demo" style="max-width: 420px;">
+        <div class="chat-msg chat-assistant">
+          What draws you to this topic? What's the core insight?
+        </div>
+        <div class="chat-msg chat-user">
+          I think most people underestimate how surveillance capitalism shapes their daily choices.
+        </div>
+        <div class="chat-msg chat-assistant">
+          That's a strong hook. Let's explore the mechanism...
+        </div>
+        <div class="chat-msg" style="align-self: flex-start; background: var(--surface-overlay); border: 1px solid var(--surface-border); padding: 0.375rem 0.625rem; border-radius: var(--radius-md); display: flex; align-items: center; gap: 0.375rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+          <span style="font-size: 0.875rem; color: var(--text-muted);">Thinking...</span>
+        </div>
+      </div>
+
+      <table class="ref-table" style="margin-top: 1rem;">
+        <thead><tr><th>Role</th><th>Background</th><th>Border</th><th>Alignment</th></tr></thead>
+        <tbody>
+          <tr><td>User</td><td><code>bg-interactive</code></td><td>None</td><td>Right (<code>justify-end</code>)</td></tr>
+          <tr><td>Assistant</td><td><code>bg-surface-overlay</code></td><td><code>border-surface-border</code></td><td>Left (<code>justify-start</code>)</td></tr>
+          <tr><td>Loading</td><td><code>bg-surface-overlay</code></td><td><code>border-surface-border</code></td><td>Left + spinner</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Header Pattern -->
+    <div class="subsection">
+      <h3>Sticky Page Header</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Every page has a sticky header. Pattern: back arrow + icon + title/subtitle left, action buttons right.
+      </p>
+      <div class="header-specimen">
+        <div class="header-left">
+          <button class="back-btn">←</button>
+          <div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--status-running-fg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              <span style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 500; color: var(--text-heading);">Brainstorming</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Privacy in the Age of AI</p>
+          </div>
+        </div>
+        <button class="btn btn-complete" style="font-size: 0.8rem; padding: 0.3rem 0.75rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          Generate Manifesto
+        </button>
+      </div>
+      <div class="code-block" style="margin-top: 0.75rem;">
+<span class="comment">{/* Sticky header recipe */}</span>
+&lt;header className="<span class="key">border-b border-surface-border bg-surface-raised sticky top-0 z-10</span>"&gt;
+  &lt;div className="<span class="key">max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-3</span>"&gt;
+    <span class="comment">{/* Back arrow + title left, buttons right */}</span>
+  &lt;/div&gt;
+&lt;/header&gt;
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Progress Bar -->
+    <div class="subsection">
+      <h3>Progress Bar</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Thin inline progress bar used in the dashboard header for word count.
+      </p>
+      <div style="display: flex; align-items: center; gap: 0.75rem; max-width: 300px;">
+        <span style="font-size: 0.8rem; color: var(--text-muted);">45,200 words</span>
+        <div class="progress-track" style="width: 96px; height: 6px;">
+          <div class="progress-fill" style="width: 68%;"></div>
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-subtle);">68%</span>
+      </div>
+      <div class="code-block" style="margin-top: 0.75rem;">
+<span class="comment">{/* Progress track: surface-overlay, fill: status-complete-fg */}</span>
+&lt;span className="<span class="key">inline-flex items-center w-24 h-1.5 bg-surface-overlay rounded-full overflow-hidden</span>"&gt;
+  &lt;span className="<span class="key">h-full bg-status-complete-fg rounded-full transition-all</span>"
+    style={{ width: `${percent}%` }} /&gt;
+&lt;/span&gt;
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- FAB -->
+    <div class="subsection">
+      <h3>Floating Action Button (Advisor)</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Persistent bottom-right button. Opens slide-out advisor panel. 56×56px circle with shadow.
+      </p>
+      <div style="display: flex; align-items: center; gap: 1.5rem;">
+        <button class="fab-demo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </button>
+        <div>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">Position: <code style="font-size: 0.75rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">fixed bottom-6 right-6 z-30</code></p>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">Hover: <code style="font-size: 0.75rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">scale(1.05)</code></p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Modal -->
+    <div class="subsection">
+      <h3>Confirmation Modal</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Used for destructive actions (delete project). Centered overlay with <code style="font-size: 0.75rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">bg-black/60</code> backdrop.
+      </p>
+      <div style="background: var(--surface-raised); border: 1px solid var(--surface-border); border-radius: var(--radius-lg); padding: 1.5rem; max-width: 420px;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+          <div style="padding: 0.5rem; background: var(--status-blocked-bg); border-radius: 50%;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--status-blocked-fg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <h2 style="font-family: var(--font-display); font-size: 1.1rem; color: var(--text-heading);">Delete Project</h2>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text); margin-bottom: 0.4rem;">You are about to delete <strong style="color: var(--text-heading);">Leadership Org Pitfalls</strong>.</p>
+        <p style="font-size: 0.85rem; color: var(--status-blocked-fg); font-weight: 500; margin-bottom: 1.25rem;">This action cannot be undone.</p>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button class="btn btn-outline" style="font-size: 0.8rem;">Cancel</button>
+          <button class="btn btn-danger" style="font-size: 0.8rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            Delete Permanently
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Toast / Snackbar -->
+    <div class="subsection">
+      <h3>Unsaved Changes Toast</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Bottom-center floating notification for unsaved changes. Attention-colored.
+      </p>
+      <div style="display: inline-block; padding: 0.5rem 1rem; background: var(--status-attention-surface); border: 1px solid var(--status-attention-border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg);">
+        <p style="font-size: 0.85rem; color: var(--status-attention-fg);">You have unsaved changes</p>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 0.4rem;">Position: <code style="font-size: 0.7rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">fixed bottom-4 left-1/2 -translate-x-1/2</code></p>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       07 · LAYOUT PATTERNS
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="layout">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <h2>Layout Patterns</h2>
+    </div>
+
+    <div class="subsection">
+      <h4>Container Widths</h4>
+      <table class="ref-table">
+        <thead><tr><th>Page</th><th>Max Width</th><th>Padding</th></tr></thead>
+        <tbody>
+          <tr><td>BookList</td><td><code>max-w-4xl</code> (896px)</td><td><code>p-4 sm:p-6 md:p-8</code></td></tr>
+          <tr><td>BookDashboard</td><td><code>max-w-7xl</code> (1280px)</td><td><code>px-3 sm:px-4 md:px-6</code></td></tr>
+          <tr><td>BrainstormingChat</td><td><code>max-w-4xl</code></td><td><code>px-3 sm:px-4 md:px-6</code></td></tr>
+          <tr><td>ManifestoEditor</td><td><code>max-w-6xl</code> (1152px)</td><td><code>px-3 sm:px-4 md:px-6</code></td></tr>
+          <tr><td>ArtifactViewer</td><td><code>max-w-6xl</code></td><td><code>px-6</code></td></tr>
+          <tr><td>Advisor slide-out</td><td><code>max-w-md</code> (448px)</td><td>Full height, right-anchored</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <h4>Page Structure Template</h4>
+      <div class="code-block">
+<span class="comment">&lt;!-- Full-height flex column: header + scrollable main + optional footer --&gt;</span>
+&lt;div className="<span class="key">min-h-screen flex flex-col</span>"&gt;
+
+  <span class="comment">&lt;!-- Sticky header --&gt;</span>
+  &lt;header className="<span class="key">border-b border-surface-border bg-surface-raised sticky top-0 z-10</span>"&gt;
+    &lt;div className="<span class="key">max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-3</span>"&gt; ... &lt;/div&gt;
+  &lt;/header&gt;
+
+  <span class="comment">&lt;!-- Scrollable main content --&gt;</span>
+  &lt;main className="<span class="key">flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 md:px-6 py-4 md:py-6</span>"&gt;
+    &lt;div className="<span class="key">bg-surface-raised rounded-lg border border-surface-border p-6</span>"&gt;
+      ...
+    &lt;/div&gt;
+  &lt;/main&gt;
+
+  <span class="comment">&lt;!-- Optional sticky footer (chat input) --&gt;</span>
+  &lt;footer className="<span class="key">border-t border-surface-border bg-surface-raised</span>"&gt; ... &lt;/footer&gt;
+
+&lt;/div&gt;
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>Dashboard Accordion Layout</h4>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+        Five phase blocks stacked vertically with <code style="font-size: 0.75rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">space-y-3</code> (12px gap). Only one expanded at a time. The most recent active phase auto-expands on load.
+      </p>
+      <div style="max-width: 500px; display: flex; flex-direction: column; gap: 0.75rem;">
+        <div style="background: var(--surface-raised); border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; opacity: 0.7;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="dot dot-complete"></span>
+            <span style="font-family: var(--font-display); font-size: 0.95rem; color: var(--text-heading);">Foundation</span>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-subtle);">S1–S2 · Complete</span>
+        </div>
+        <div style="background: var(--surface-raised); border: 1px solid var(--status-running-border); border-radius: var(--radius-md); overflow: hidden;">
+          <div style="padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid var(--surface-border);">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="dot dot-running"></span>
+              <span style="font-family: var(--font-display); font-size: 0.95rem; color: var(--text-heading);">Research</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--status-running-fg);">S3 · 8/15 complete</span>
+          </div>
+          <div style="padding: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+            <em>Expanded content: chapter table, action buttons, progress details...</em>
+          </div>
+        </div>
+        <div style="background: var(--surface-raised); border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; opacity: 0.5;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="dot dot-pending"></span>
+            <span style="font-family: var(--font-display); font-size: 0.95rem; color: var(--text-heading);">Drafting</span>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-subtle);">S4–S8 · Waiting</span>
+        </div>
+        <div style="background: var(--surface-raised); border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; opacity: 0.5;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="dot dot-pending"></span>
+            <span style="font-family: var(--font-display); font-size: 0.95rem; color: var(--text-heading);">Editorial</span>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-subtle);">S9–S11 · Locked</span>
+        </div>
+        <div style="background: var(--surface-raised); border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; opacity: 0.5;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="dot dot-pending"></span>
+            <span style="font-family: var(--font-display); font-size: 0.95rem; color: var(--text-heading);">Polish</span>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-subtle);">S12–S14 · Locked</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h4>Responsive Breakpoints</h4>
+      <table class="ref-table">
+        <thead><tr><th>Breakpoint</th><th>Width</th><th>Primary Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>sm:</code></td><td>640px</td><td>Padding bumps from 12px to 16px</td></tr>
+          <tr><td><code>md:</code></td><td>768px</td><td>Padding bumps to 24px, vertical spacing increases</td></tr>
+          <tr><td>Default</td><td>&lt;640px</td><td>Mobile: tighter padding, flex-wrap on header buttons</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       08 · MOTION & ANIMATION
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="motion">
+    <div class="section-header">
+      <span class="section-num">08</span>
+      <h2>Motion &amp; Animation</h2>
+    </div>
+
+    <p class="section-desc">
+      Minimal, functional motion. Animations signal state, not decoration. Three patterns cover the entire UI.
+    </p>
+
+    <table class="ref-table">
+      <thead><tr><th>Animation</th><th>Class</th><th>Duration</th><th>Usage</th></tr></thead>
+      <tbody>
+        <tr>
+          <td style="display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--status-running-fg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+            Spin
+          </td>
+          <td><code>animate-spin</code></td>
+          <td>1s linear ∞</td>
+          <td>Loading spinners (Loader2 icon). Active operations.</td>
+        </tr>
+        <tr>
+          <td style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="dot dot-running"></span>
+            Pulse (slow)
+          </td>
+          <td><code>animate-pulse-slow</code></td>
+          <td>2s ease-in-out ∞</td>
+          <td>Running status dots. "This is alive" signal.</td>
+        </tr>
+        <tr>
+          <td>Transition</td>
+          <td><code>transition-colors</code> / <code>transition-all</code></td>
+          <td>150ms</td>
+          <td>Button hover, card hover, any interactive state change.</td>
+        </tr>
+        <tr>
+          <td>Scroll into view</td>
+          <td><code>scrollIntoView({ behavior: 'smooth' })</code></td>
+          <td>Browser default</td>
+          <td>Auto-scroll to new chat messages.</td>
+        </tr>
+        <tr>
+          <td>Scale on hover</td>
+          <td><code>hover:scale-105</code></td>
+          <td>Part of <code>transition-all</code></td>
+          <td>Floating action button only.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note" style="margin-top: 1rem;">
+      <strong>Design note:</strong> The <code style="font-size: 0.8rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">animate-pulse-slow</code> is a custom Tailwind keyframe (2s vs the default 1s pulse). Defined in tailwind.config.ts. The slower rhythm is calmer — appropriate for a tool the author leaves running for hours.
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       09 · ICONOGRAPHY
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="icons">
+    <div class="section-header">
+      <span class="section-num">09</span>
+      <h2>Iconography</h2>
+    </div>
+
+    <p class="section-desc">
+      All icons from <strong style="color: var(--text-heading);">Lucide React</strong> (lucide-react). Consistent 24px base size, scaled down for inline use. Stroke-based, 2px stroke width.
+    </p>
+
+    <table class="ref-table">
+      <thead><tr><th>Icon</th><th>Lucide Name</th><th>Size</th><th>Context</th></tr></thead>
+      <tbody>
+        <tr><td>←</td><td><code>ArrowLeft</code></td><td>w-5 h-5 (20px)</td><td>Back navigation</td></tr>
+        <tr><td>⊕</td><td><code>Plus</code></td><td>w-4 h-4 (16px)</td><td>New Project button</td></tr>
+        <tr><td>◎</td><td><code>Loader2</code></td><td>w-4–w-8</td><td>Loading spinner (always with <code>animate-spin</code>)</td></tr>
+        <tr><td>💬</td><td><code>MessageSquare</code></td><td>w-5–w-6</td><td>Advisor icon, chat panels</td></tr>
+        <tr><td>⚡</td><td><code>Sparkles</code></td><td>w-5</td><td>Brainstorming page icon</td></tr>
+        <tr><td>⚠</td><td><code>AlertCircle</code></td><td>w-3.5–w-12</td><td>Errors (large), attention counts (small)</td></tr>
+        <tr><td>✓</td><td><code>CheckCircle</code></td><td>w-3–w-4</td><td>Complete status, Mark Complete button</td></tr>
+        <tr><td>📄</td><td><code>FileText</code></td><td>w-4–w-5</td><td>Manifesto, documents, generic artifacts</td></tr>
+        <tr><td>↓</td><td><code>Download</code></td><td>w-4</td><td>Download buttons</td></tr>
+        <tr><td>→</td><td><code>Send</code></td><td>w-3.5–w-5</td><td>Chat send button</td></tr>
+        <tr><td>🗑</td><td><code>Trash2</code></td><td>w-3.5–w-5</td><td>Delete, clear history</td></tr>
+        <tr><td>✕</td><td><code>X</code></td><td>w-4–w-6</td><td>Close panel, dismiss</td></tr>
+        <tr><td>💾</td><td><code>Save</code></td><td>w-4</td><td>Save button</td></tr>
+      </tbody>
+    </table>
+
+    <div class="subsection" style="margin-top: 1rem;">
+      <h4>Icon Color Rules</h4>
+      <table class="ref-table">
+        <thead><tr><th>Context</th><th>Color Token</th></tr></thead>
+        <tbody>
+          <tr><td>Default / inactive</td><td><code>text-text-muted</code></td></tr>
+          <tr><td>Active / running accent</td><td><code>text-status-running-fg</code></td></tr>
+          <tr><td>Complete / success accent</td><td><code>text-status-complete-fg</code></td></tr>
+          <tr><td>Error / blocked</td><td><code>text-status-blocked-fg</code></td></tr>
+          <tr><td>Inside button (inherits)</td><td><code>currentColor</code> (inherits parent text color)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       10 · MARKDOWN RENDERING
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="markdown">
+    <div class="section-header">
+      <span class="section-num">10</span>
+      <h2>Markdown Rendering</h2>
+    </div>
+
+    <p class="section-desc">
+      Specifications, artifacts, and research docs are rendered from Markdown via <code style="font-size: 0.8rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">react-markdown</code> + <code style="font-size: 0.8rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">remark-gfm</code>. Custom component overrides enforce the design system.
+    </p>
+
+    <div style="background: var(--surface-raised); border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 1.5rem; max-width: 680px;">
+      <h1 style="font-family: var(--font-display); font-size: 1.25rem; color: var(--text-heading); margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--surface-border);">Chapter 3: The Surveillance Economy</h1>
+      <h2 style="font-family: var(--font-display); font-size: 1.1rem; color: var(--text-heading); margin-bottom: 0.5rem; margin-top: 1.25rem;">Data Collection Mechanisms</h2>
+      <p style="font-size: 0.875rem; color: var(--text); margin-bottom: 0.75rem; line-height: 1.6;">
+        The modern surveillance economy operates through <strong style="font-weight: 500; color: var(--text-heading);">three primary channels</strong> that most users never consciously encounter. Each represents a different layer of the attention extraction stack.
+      </p>
+      <blockquote style="border-left: 2px solid var(--surface-border); padding-left: 1rem; margin: 0.75rem 0; color: var(--text-muted); font-style: italic; font-size: 0.875rem;">
+        "The product is not the service — the product is the prediction of your behavior."
+      </blockquote>
+      <p style="font-size: 0.875rem; color: var(--text); margin-bottom: 0.75rem; line-height: 1.6;">
+        Browser fingerprinting uses the <span style="font-family: var(--font-mono); font-size: 0.75rem; padding: 0.1rem 0.3rem; background: var(--surface-overlay); border-radius: 3px; color: var(--status-running-fg);">navigator.userAgent</span> API and canvas rendering differences to uniquely identify 94% of visitors without cookies.
+      </p>
+      <p style="font-size: 0.875rem; color: var(--text); line-height: 1.6;">
+        For further analysis, see the verification report on <a href="#" style="color: var(--status-running-fg); text-decoration: none;">source credibility</a>.
+      </p>
+    </div>
+
+    <div class="subsection" style="margin-top: 1rem;">
+      <h4>Key Overrides</h4>
+      <table class="ref-table">
+        <thead><tr><th>Element</th><th>Font</th><th>Color</th><th>Extras</th></tr></thead>
+        <tbody>
+          <tr><td><code>h1</code></td><td>font-display · 1.25rem</td><td>text-heading</td><td>border-bottom, pb-2</td></tr>
+          <tr><td><code>h2</code></td><td>font-display · 1.125rem</td><td>text-heading</td><td>mt-5</td></tr>
+          <tr><td><code>h3</code></td><td>font-body · medium</td><td>text-heading</td><td>—</td></tr>
+          <tr><td><code>p</code></td><td>font-body · 0.875rem</td><td>text</td><td>mb-3, leading-relaxed</td></tr>
+          <tr><td><code>blockquote</code></td><td>font-body · italic</td><td>text-muted</td><td>border-l-2</td></tr>
+          <tr><td><code>code</code> (inline)</td><td>font-mono · 0.75rem</td><td>status-running-fg</td><td>bg-surface-overlay, rounded</td></tr>
+          <tr><td><code>code</code> (block)</td><td>font-mono · 0.75rem</td><td>text</td><td>bg-surface-overlay, p-3</td></tr>
+          <tr><td><code>a</code></td><td>inherited</td><td>status-running-fg</td><td>hover:underline, target=_blank</td></tr>
+          <tr><td><code>strong</code></td><td>font-medium</td><td>text-heading</td><td>—</td></tr>
+          <tr><td><code>table</code></td><td>—</td><td>—</td><td>border-collapse, surface-border rows</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       11 · TECH STACK
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="tech-stack">
+    <div class="section-header">
+      <span class="section-num">11</span>
+      <h2>Tech Stack</h2>
+    </div>
+
+    <table class="ref-table">
+      <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Framework</td><td><strong style="color: var(--text-heading);">React 18</strong> + TypeScript</td><td>Lazy-loaded pages via <code>React.lazy()</code></td></tr>
+        <tr><td>Routing</td><td><strong style="color: var(--text-heading);">React Router v6</strong></td><td>Nested routes, <code>useParams</code>, <code>useNavigate</code></td></tr>
+        <tr><td>Data fetching</td><td><strong style="color: var(--text-heading);">TanStack Query</strong> (React Query)</td><td>1 min stale time, no refetch on window focus</td></tr>
+        <tr><td>Styling</td><td><strong style="color: var(--text-heading);">Tailwind CSS</strong></td><td>Custom theme tokens (semantic colors, fonts). No component library (shadcn, MUI, etc.)</td></tr>
+        <tr><td>Icons</td><td><strong style="color: var(--text-heading);">Lucide React</strong></td><td>Stroke icons, 2px weight, tree-shakeable</td></tr>
+        <tr><td>Markdown</td><td><strong style="color: var(--text-heading);">react-markdown</strong> + remark-gfm</td><td>Custom component overrides for design system compliance</td></tr>
+        <tr><td>Build</td><td>Vite (inferred)</td><td>Based on <code>main.tsx</code> entry point pattern</td></tr>
+        <tr><td>Fonts</td><td>Google Fonts</td><td>DM Sans (body), Crimson Pro (display)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       12 · FULL TOKEN REFERENCE
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="token-ref">
+    <div class="section-header">
+      <span class="section-num">12</span>
+      <h2>Full Token Reference</h2>
+    </div>
+
+    <p class="section-desc">
+      Every semantic Tailwind token used across the codebase, organized by category. These map to values in <code style="font-size: 0.8rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">tailwind.config.ts</code>.
+    </p>
+
+    <div class="subsection">
+      <h4>Background Tokens</h4>
+      <table class="ref-table">
+        <thead><tr><th>Token</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>bg-surface</code></td><td>Page background, input backgrounds, deepest layer</td></tr>
+          <tr><td><code>bg-surface-raised</code></td><td>Cards, headers, panels, modals, editor background</td></tr>
+          <tr><td><code>bg-surface-overlay</code></td><td>Hover states, code blocks, assistant chat bubbles</td></tr>
+          <tr><td><code>bg-interactive</code></td><td>Primary buttons, user chat bubbles, FAB</td></tr>
+          <tr><td><code>bg-interactive-hover</code></td><td>Button hover states, FAB hover</td></tr>
+          <tr><td><code>bg-status-running-bg</code></td><td>Running badge background, bot avatar</td></tr>
+          <tr><td><code>bg-status-complete-bg</code></td><td>Complete/success buttons, create/submit buttons</td></tr>
+          <tr><td><code>bg-status-blocked-bg</code></td><td>Error icon container, delete hover</td></tr>
+          <tr><td><code>bg-status-attention-surface</code></td><td>Warning toast background</td></tr>
+          <tr><td><code>bg-black/30</code></td><td>Slide-out panel backdrop</td></tr>
+          <tr><td><code>bg-black/60</code></td><td>Modal backdrop</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <h4>Text Color Tokens</h4>
+      <table class="ref-table">
+        <thead><tr><th>Token</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>text-text</code></td><td>Primary body text, button labels</td></tr>
+          <tr><td><code>text-text-heading</code></td><td>Headings, strong elements, card titles</td></tr>
+          <tr><td><code>text-text-muted</code></td><td>Secondary text, metadata, descriptions, back arrows</td></tr>
+          <tr><td><code>text-text-subtle</code></td><td>Timestamps, placeholders, version labels, hints</td></tr>
+          <tr><td><code>text-status-running-fg</code></td><td>Links, inline code, running accents, advisor icon</td></tr>
+          <tr><td><code>text-status-complete-fg</code></td><td>Success buttons text, artifact icons</td></tr>
+          <tr><td><code>text-status-blocked-fg</code></td><td>Error text, destructive warning copy</td></tr>
+          <tr><td><code>text-status-attention-fg</code></td><td>"X need attention" text, unsaved changes</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <h4>Border Tokens</h4>
+      <table class="ref-table">
+        <thead><tr><th>Token</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>border-surface-border</code></td><td>All standard borders: cards, inputs, tables, headers, dividers</td></tr>
+          <tr><td><code>border-surface-border/50</code></td><td>Table row borders (half opacity)</td></tr>
+          <tr><td><code>border-interactive-border</code></td><td>Input focus state</td></tr>
+          <tr><td><code>border-status-running-border</code></td><td>Running badge border, active accordion block</td></tr>
+          <tr><td><code>border-status-attention-border</code></td><td>Attention toast border</td></tr>
+          <tr><td><code>border-status-blocked-border</code></td><td>Error toast/callout border</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warning" style="margin-top: 1.5rem;">
+      <strong>To finalize this guide:</strong> Share your <code style="font-size: 0.8rem; background: var(--surface-overlay); padding: 0.1rem 0.3rem; border-radius: 2px;">tailwind.config.ts</code> and I'll replace all "(approx)" hex values with canonical ones, add any tokens I may have missed, and verify the animation timing config.
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       FOOTER
+       ══════════════════════════════════════════════════════════════════ -->
+  <footer style="border-top: 1px solid var(--surface-border); padding-top: 2rem; margin-top: 4rem; text-align: center;">
+    <p style="font-size: 0.8rem; color: var(--text-subtle);">
+      BOOKWORM Style Guide · Generated February 2026<br>
+      Source: 10 component files, index.css, types/index.ts
+    </p>
+  </footer>
+
+</div>
+
+</body>
+</html>
