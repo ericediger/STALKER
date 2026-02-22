@@ -1,7 +1,7 @@
 # AGENTS.md — STALKER Tech Stack & Design Decisions
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-21 (Post-Session 1)
+**Last Updated:** 2026-02-21 (Post-Session 3)
 
 ---
 
@@ -20,7 +20,7 @@
 | **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Google Fonts |
 | **Charting** | TradingView Lightweight Charts | MIT license, financial-purpose, lightweight |
 | **Monorepo** | pnpm 10.30.1 workspaces | Native, fast, no Turborepo/Nx needed |
-| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 71 tests passing |
+| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 218 tests passing |
 | **IDs** | ULID 2.x | Sortable, no coordination, SQLite-friendly |
 | **Process manager** | concurrently 9.x | Runs Next.js + scheduler together via `pnpm dev` |
 | **LLM** | Anthropic Claude (primary), OpenAI (secondary) | Provider-agnostic adapter |
