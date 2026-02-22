@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-21 (Post-Session 3)
+**Last Updated:** 2026-02-22 (Post-Session 4)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -186,41 +186,56 @@ Market data provider tests use fixture files (`packages/market-data/__tests__/fi
 
 ---
 
-## Analytics Package Interface Pattern (Session 3)
+## Analytics Package Interface Pattern (Session 3 → Wired in Session 4)
 
-The analytics package (`packages/analytics/`) uses dependency-injected interfaces to stay decoupled from Prisma and market-data. Session 4 must provide Prisma-backed implementations.
+The analytics package (`packages/analytics/`) uses dependency-injected interfaces to stay decoupled from Prisma and market-data. Session 4 provided the Prisma-backed implementations.
 
 ### Key Interfaces
 
-| Interface | Defined In | Purpose |
-|-----------|-----------|---------|
-| `PriceLookup` | `packages/analytics/src/interfaces.ts` | Abstracts price bar queries (exact date, carry-forward, first bar date) |
-| `SnapshotStore` | `packages/analytics/src/interfaces.ts` | Abstracts snapshot CRUD (delete, write, read by range/date) |
-| `CalendarFns` | `packages/analytics/src/value-series.ts` | Minimal calendar interface (`getNextTradingDay`, `isTradingDay`) |
+| Interface | Defined In | Implementation |
+|-----------|-----------|----------------|
+| `PriceLookup` | `packages/analytics/src/interfaces.ts` | `apps/web/src/lib/prisma-price-lookup.ts` |
+| `SnapshotStore` | `packages/analytics/src/interfaces.ts` | `apps/web/src/lib/prisma-snapshot-store.ts` |
+| `CalendarFns` | `packages/analytics/src/value-series.ts` | `{ getNextTradingDay, isTradingDay }` from `@stalker/market-data` |
 
-### How Session 4 Should Wire Prisma Implementations
+### Prisma-to-Shared Type Conversion
 
-1. **`PriceLookup` (Prisma-backed):** Implement `getClosePriceOrCarryForward()` as `SELECT close FROM PriceBar WHERE instrumentId = ? AND date <= ? ORDER BY date DESC LIMIT 1`. Return `isCarryForward: actualDate !== requestedDate`.
+Prisma models return Prisma's own types. Analytics expects `@stalker/shared` types. Conversion pattern:
+```typescript
+import { toDecimal } from '@stalker/shared';
+import type { Instrument, Transaction, InstrumentType, TransactionType } from '@stalker/shared';
 
-2. **`SnapshotStore` (Prisma-backed):** Implement against the `PortfolioValueSnapshot` Prisma model. `deleteFrom(date)` → `DELETE WHERE date >= ?`. `writeBatch(snapshots)` → `createMany()`. `getRange/getByDate` → standard Prisma queries.
+// Prisma Decimal → decimal.js Decimal
+const qty = toDecimal(prismaTx.quantity.toString());
 
-3. **Calendar:** Import `{ getNextTradingDay, isTradingDay }` from `@stalker/market-data` and pass as `calendar` parameter.
+// Prisma instrument → shared Instrument (parse providerSymbolMap JSON)
+const instrument: Instrument = {
+  ...prismaInst,
+  type: prismaInst.type as InstrumentType,
+  providerSymbolMap: JSON.parse(prismaInst.providerSymbolMap),
+};
+```
 
 ### Rebuild Trigger for Transaction CRUD
 
-After any transaction insert/edit/delete, API routes call:
+After any transaction insert/edit/delete, API routes should call:
 ```typescript
 import { rebuildSnapshotsFrom } from '@stalker/analytics';
+import { PrismaPriceLookup } from '@/lib/prisma-price-lookup';
+import { PrismaSnapshotStore } from '@/lib/prisma-snapshot-store';
+import { getNextTradingDay, isTradingDay } from '@stalker/market-data';
 
 await rebuildSnapshotsFrom({
-  affectedDate,       // earliest tradeAt that changed (YYYY-MM-DD)
-  transactions,       // full transaction set (post-change)
-  instruments,        // all instruments
-  priceLookup,        // Prisma-backed implementation
-  snapshotStore,      // Prisma-backed implementation
-  calendar,           // { getNextTradingDay, isTradingDay }
+  affectedDate,
+  transactions,
+  instruments,
+  priceLookup: new PrismaPriceLookup(prisma),
+  snapshotStore: new PrismaSnapshotStore(prisma),
+  calendar: { getNextTradingDay, isTradingDay },
 });
 ```
+
+**Note (Session 4):** Snapshot rebuild is currently stubbed in transaction CRUD endpoints. The implementations exist but the wiring is deferred — ready to activate when needed. Transaction endpoints still validate sell invariants correctly.
 
 ### Reference Portfolio Fixtures
 
@@ -231,6 +246,64 @@ Location: `data/test/`
 - Tests: `packages/analytics/__tests__/reference-portfolio.test.ts` (24 tests)
 
 Purpose: Regression guard for the analytics engine. Covers FIFO multi-lot sells, full position close, re-entry, backdated transactions, and carry-forward pricing.
+
+---
+
+## API Endpoint Patterns (Session 4)
+
+### Endpoint Map
+
+| Method | Route | Purpose | Status |
+|--------|-------|---------|--------|
+| POST | `/api/instruments` | Create instrument | Implemented |
+| GET | `/api/instruments` | List all instruments | Implemented |
+| GET | `/api/instruments/[id]` | Get instrument by ID | Implemented |
+| DELETE | `/api/instruments/[id]` | Cascade delete instrument | Implemented |
+| POST | `/api/transactions` | Create transaction (sell validated) | Implemented |
+| GET | `/api/transactions` | List transactions (filterable) | Implemented |
+| GET | `/api/transactions/[id]` | Get transaction by ID | Implemented |
+| PUT | `/api/transactions/[id]` | Update transaction (re-validated) | Implemented |
+| DELETE | `/api/transactions/[id]` | Delete transaction (re-validated) | Implemented |
+| GET | `/api/portfolio/snapshot` | Portfolio state with window | Implemented |
+| GET | `/api/portfolio/timeseries` | Value series for charting | Implemented |
+| GET | `/api/portfolio/holdings` | All holdings + allocation % | Implemented |
+| GET | `/api/portfolio/holdings/[symbol]` | Position detail with lots | Implemented |
+| GET | `/api/market/quote` | Latest cached quote | Implemented |
+| GET | `/api/market/history` | Price bar history | Implemented |
+| GET | `/api/market/search` | Symbol search | Stub (needs API keys) |
+| POST | `/api/market/refresh` | Manual quote refresh | Stub (needs API keys) |
+| GET | `/api/market/status` | Data health summary | Implemented |
+
+### Shared Utilities
+
+| File | Purpose |
+|------|---------|
+| `apps/web/src/lib/prisma.ts` | Singleton PrismaClient |
+| `apps/web/src/lib/errors.ts` | `apiError()` factory for consistent error responses |
+| `apps/web/src/lib/validators/instrumentInput.ts` | Zod v4 schema for instrument creation |
+| `apps/web/src/lib/validators/transactionInput.ts` | Zod v4 schema for transaction creation/update |
+| `apps/web/src/lib/prisma-price-lookup.ts` | PriceLookup implementation (carry-forward queries) |
+| `apps/web/src/lib/prisma-snapshot-store.ts` | SnapshotStore implementation (Decimal serialization) |
+| `apps/web/src/lib/market-data-client.ts` | Market calendar wrapper |
+
+### Error Response Shape
+
+All error responses follow:
+```json
+{ "error": "ERROR_CODE", "message": "Human-readable message", "details": { ... } }
+```
+Codes: `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `CONFLICT` (409), `SELL_VALIDATION_FAILED` (422), `INTERNAL_ERROR` (500).
+
+### Session 5 Integration Notes
+
+- All API endpoints are functional. UI pages can `fetch()` them directly.
+- Portfolio snapshot endpoint supports `window` param (1D/1W/1M/3M/1Y/ALL) for dashboard.
+- Holdings endpoint returns allocation % — ready for pie chart.
+- Timeseries endpoint returns date-ordered series — ready for area chart.
+- Holdings/[symbol] returns per-lot detail — ready for position detail view.
+- Decimal values are strings in all responses — UI must parse at render time.
+- Instrument creation auto-maps exchange→exchangeTz and builds providerSymbolMap.
+- `providerSymbolMap` is returned as a parsed object (not JSON string) in instrument responses.
 
 ---
 
