@@ -130,9 +130,7 @@ describe('PrismaSnapshotStore', () => {
   const store = new PrismaSnapshotStore(prisma);
 
   beforeEach(async () => {
-    await prisma.portfolioValueSnapshot.deleteMany({
-      where: { date: { gte: '2026-01-01', lte: '2026-01-31' } },
-    });
+    await prisma.portfolioValueSnapshot.deleteMany();
   });
 
   it('writeBatch creates snapshots', async () => {
