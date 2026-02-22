@@ -1,0 +1,430 @@
+{
+  "checkpoints": [
+    {
+      "date": "2026-01-09",
+      "dayIndex": 5,
+      "description": "After initial buys in 5 instruments (AAPL, VTI, MSFT, QQQ, SPY)",
+      "expectedLotState": {
+        "AAPL": [
+          { "openedAt": "2026-01-05T14:30:00.000Z", "originalQty": "100", "remainingQty": "100", "costBasisPerShare": "150", "costBasisRemaining": "15000" }
+        ],
+        "VTI": [
+          { "openedAt": "2026-01-06T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "250", "costBasisRemaining": "12500" }
+        ],
+        "MSFT": [
+          { "openedAt": "2026-01-07T14:30:00.000Z", "originalQty": "200", "remainingQty": "200", "costBasisPerShare": "400", "costBasisRemaining": "80000" }
+        ],
+        "QQQ": [
+          { "openedAt": "2026-01-08T14:30:00.000Z", "originalQty": "80", "remainingQty": "80", "costBasisPerShare": "480", "costBasisRemaining": "38400" }
+        ],
+        "SPY": [
+          { "openedAt": "2026-01-09T14:30:00.000Z", "originalQty": "60", "remainingQty": "60", "costBasisPerShare": "590", "costBasisRemaining": "35400" }
+        ]
+      },
+      "expectedRealizedPnl": {
+        "cumulative": "0",
+        "trades": []
+      },
+      "expectedPortfolioValue": {
+        "totalValue": "183282.5",
+        "totalCostBasis": "181300",
+        "unrealizedPnl": "1982.5",
+        "realizedPnl": "0",
+        "holdings": {
+          "AAPL": { "qty": "100", "value": "15450", "costBasis": "15000" },
+          "VTI": { "qty": "50", "value": "12462.5", "costBasis": "12500" },
+          "MSFT": { "qty": "200", "value": "81500", "costBasis": "80000" },
+          "QQQ": { "qty": "80", "value": "38440", "costBasis": "38400" },
+          "SPY": { "qty": "60", "value": "35430", "costBasis": "35400" }
+        }
+      }
+    },
+    {
+      "date": "2026-01-27",
+      "dayIndex": 17,
+      "description": "After QQQ partial sell on Jan 26. 6 instruments held.",
+      "expectedLotState": {
+        "AAPL": [
+          { "openedAt": "2026-01-05T14:30:00.000Z", "originalQty": "100", "remainingQty": "100", "costBasisPerShare": "150", "costBasisRemaining": "15000" },
+          { "openedAt": "2026-01-12T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "160", "costBasisRemaining": "8000" }
+        ],
+        "VTI": [
+          { "openedAt": "2026-01-06T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "250", "costBasisRemaining": "12500" },
+          { "openedAt": "2026-01-20T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "255", "costBasisRemaining": "7650" }
+        ],
+        "MSFT": [
+          { "openedAt": "2026-01-07T14:30:00.000Z", "originalQty": "200", "remainingQty": "200", "costBasisPerShare": "400", "costBasisRemaining": "80000" }
+        ],
+        "QQQ": [
+          { "openedAt": "2026-01-08T14:30:00.000Z", "originalQty": "80", "remainingQty": "50", "costBasisPerShare": "480", "costBasisRemaining": "24000" }
+        ],
+        "SPY": [
+          { "openedAt": "2026-01-09T14:30:00.000Z", "originalQty": "60", "remainingQty": "60", "costBasisPerShare": "590", "costBasisRemaining": "35400" }
+        ],
+        "INTC": [
+          { "openedAt": "2026-01-13T14:30:00.000Z", "originalQty": "150", "remainingQty": "150", "costBasisPerShare": "22", "costBasisRemaining": "3300" }
+        ]
+      },
+      "expectedRealizedPnl": {
+        "cumulative": "300",
+        "trades": [
+          {
+            "instrument": "QQQ",
+            "sellDate": "2026-01-26T14:30:00.000Z",
+            "qty": "30",
+            "proceeds": "14700",
+            "costBasis": "14400",
+            "realizedPnl": "300"
+          }
+        ]
+      },
+      "expectedPortfolioValue": {
+        "totalValue": "190475",
+        "totalCostBasis": "185850",
+        "unrealizedPnl": "4625",
+        "realizedPnl": "300",
+        "holdings": {
+          "AAPL": { "qty": "150", "value": "24075", "costBasis": "23000" },
+          "VTI": { "qty": "80", "value": "20180", "costBasis": "20150" },
+          "MSFT": { "qty": "200", "value": "82700", "costBasis": "80000" },
+          "QQQ": { "qty": "50", "value": "24325", "costBasis": "24000" },
+          "SPY": { "qty": "60", "value": "35790", "costBasis": "35400" },
+          "INTC": { "qty": "150", "value": "3405", "costBasis": "3300" }
+        }
+      }
+    },
+    {
+      "date": "2026-02-09",
+      "dayIndex": 26,
+      "description": "After MSFT full close. 5 instruments held (MSFT gone).",
+      "expectedLotState": {
+        "AAPL": [
+          { "openedAt": "2026-01-05T14:30:00.000Z", "originalQty": "100", "remainingQty": "100", "costBasisPerShare": "150", "costBasisRemaining": "15000" },
+          { "openedAt": "2026-01-12T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "160", "costBasisRemaining": "8000" },
+          { "openedAt": "2026-02-02T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "170", "costBasisRemaining": "5100" }
+        ],
+        "VTI": [
+          { "openedAt": "2026-01-06T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "250", "costBasisRemaining": "12500" },
+          { "openedAt": "2026-01-20T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "255", "costBasisRemaining": "7650" }
+        ],
+        "MSFT": [],
+        "QQQ": [
+          { "openedAt": "2026-01-08T14:30:00.000Z", "originalQty": "80", "remainingQty": "50", "costBasisPerShare": "480", "costBasisRemaining": "24000" }
+        ],
+        "SPY": [
+          { "openedAt": "2026-01-09T14:30:00.000Z", "originalQty": "60", "remainingQty": "60", "costBasisPerShare": "590", "costBasisRemaining": "35400" },
+          { "openedAt": "2026-02-03T14:30:00.000Z", "originalQty": "25", "remainingQty": "25", "costBasisPerShare": "595", "costBasisRemaining": "14875" }
+        ],
+        "INTC": [
+          { "openedAt": "2026-01-13T14:30:00.000Z", "originalQty": "150", "remainingQty": "150", "costBasisPerShare": "22", "costBasisRemaining": "3300" }
+        ]
+      },
+      "expectedRealizedPnl": {
+        "cumulative": "4300",
+        "trades": [
+          {
+            "instrument": "QQQ",
+            "sellDate": "2026-01-26T14:30:00.000Z",
+            "qty": "30",
+            "proceeds": "14700",
+            "costBasis": "14400",
+            "realizedPnl": "300"
+          },
+          {
+            "instrument": "MSFT",
+            "sellDate": "2026-02-09T14:30:00.000Z",
+            "qty": "200",
+            "proceeds": "84000",
+            "costBasis": "80000",
+            "realizedPnl": "4000"
+          }
+        ]
+      },
+      "expectedPortfolioValue": {
+        "totalValue": "129235",
+        "totalCostBasis": "125825",
+        "unrealizedPnl": "3410",
+        "realizedPnl": "4300",
+        "holdings": {
+          "AAPL": { "qty": "180", "value": "29700", "costBasis": "28100" },
+          "VTI": { "qty": "80", "value": "20360", "costBasis": "20150" },
+          "QQQ": { "qty": "50", "value": "24550", "costBasis": "24000" },
+          "SPY": { "qty": "85", "value": "51085", "costBasis": "50275" },
+          "INTC": { "qty": "150", "value": "3540", "costBasis": "3300" }
+        }
+      }
+    },
+    {
+      "date": "2026-02-25",
+      "dayIndex": 38,
+      "description": "During INTC price gap. Tests carry-forward logic (isEstimated).",
+      "expectedLotState": {
+        "AAPL": [
+          { "openedAt": "2026-01-05T14:30:00.000Z", "originalQty": "100", "remainingQty": "10", "costBasisPerShare": "150", "costBasisRemaining": "1500" },
+          { "openedAt": "2026-01-12T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "160", "costBasisRemaining": "8000" },
+          { "openedAt": "2026-02-02T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "170", "costBasisRemaining": "5100" }
+        ],
+        "VTI": [
+          { "openedAt": "2026-01-06T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "250", "costBasisRemaining": "12500" },
+          { "openedAt": "2026-01-20T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "255", "costBasisRemaining": "7650" },
+          { "openedAt": "2026-02-10T14:30:00.000Z", "originalQty": "20", "remainingQty": "20", "costBasisPerShare": "260", "costBasisRemaining": "5200" }
+        ],
+        "QQQ": [
+          { "openedAt": "2026-01-08T14:30:00.000Z", "originalQty": "80", "remainingQty": "50", "costBasisPerShare": "480", "costBasisRemaining": "24000" },
+          { "openedAt": "2026-02-18T14:30:00.000Z", "originalQty": "40", "remainingQty": "40", "costBasisPerShare": "485", "costBasisRemaining": "19400" }
+        ],
+        "SPY": [
+          { "openedAt": "2026-01-09T14:30:00.000Z", "originalQty": "60", "remainingQty": "60", "costBasisPerShare": "590", "costBasisRemaining": "35400" },
+          { "openedAt": "2026-02-03T14:30:00.000Z", "originalQty": "25", "remainingQty": "25", "costBasisPerShare": "595", "costBasisRemaining": "14875" },
+          { "openedAt": "2026-02-20T14:30:00.000Z", "originalQty": "40", "remainingQty": "40", "costBasisPerShare": "600", "costBasisRemaining": "24000" }
+        ],
+        "INTC": [
+          { "openedAt": "2026-01-13T14:30:00.000Z", "originalQty": "150", "remainingQty": "150", "costBasisPerShare": "22", "costBasisRemaining": "3300" }
+        ]
+      },
+      "expectedRealizedPnl": {
+        "cumulative": "6550",
+        "trades": [
+          {
+            "instrument": "QQQ",
+            "sellDate": "2026-01-26T14:30:00.000Z",
+            "qty": "30",
+            "proceeds": "14700",
+            "costBasis": "14400",
+            "realizedPnl": "300"
+          },
+          {
+            "instrument": "MSFT",
+            "sellDate": "2026-02-09T14:30:00.000Z",
+            "qty": "200",
+            "proceeds": "84000",
+            "costBasis": "80000",
+            "realizedPnl": "4000"
+          },
+          {
+            "instrument": "AAPL",
+            "sellDate": "2026-02-16T14:30:00.000Z",
+            "qty": "90",
+            "proceeds": "15750",
+            "costBasis": "13500",
+            "realizedPnl": "2250"
+          }
+        ]
+      },
+      "expectedPortfolioValue": {
+        "totalValue": "165420",
+        "totalCostBasis": "160925",
+        "unrealizedPnl": "4495",
+        "realizedPnl": "6550",
+        "holdings": {
+          "AAPL": { "qty": "90", "value": "15390", "costBasis": "14600" },
+          "VTI": { "qty": "100", "value": "25750", "costBasis": "25350" },
+          "QQQ": { "qty": "90", "value": "44730", "costBasis": "43400" },
+          "SPY": { "qty": "125", "value": "75875", "costBasis": "74275" },
+          "INTC": { "qty": "150", "value": "3675", "costBasis": "3300", "isEstimated": true }
+        }
+      }
+    },
+    {
+      "date": "2026-03-03",
+      "dayIndex": 42,
+      "description": "After QQQ second sell, MSFT re-entry. Tests rebuild correctness after backdated SPY tx.",
+      "expectedLotState": {
+        "AAPL": [
+          { "openedAt": "2026-01-05T14:30:00.000Z", "originalQty": "100", "remainingQty": "10", "costBasisPerShare": "150", "costBasisRemaining": "1500" },
+          { "openedAt": "2026-01-12T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "160", "costBasisRemaining": "8000" },
+          { "openedAt": "2026-02-02T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "170", "costBasisRemaining": "5100" }
+        ],
+        "MSFT": [
+          { "openedAt": "2026-03-02T15:00:00.000Z", "originalQty": "100", "remainingQty": "100", "costBasisPerShare": "425", "costBasisRemaining": "42500" }
+        ],
+        "VTI": [
+          { "openedAt": "2026-01-06T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "250", "costBasisRemaining": "12500" },
+          { "openedAt": "2026-01-20T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "255", "costBasisRemaining": "7650" },
+          { "openedAt": "2026-02-10T14:30:00.000Z", "originalQty": "20", "remainingQty": "20", "costBasisPerShare": "260", "costBasisRemaining": "5200" }
+        ],
+        "QQQ": [
+          { "openedAt": "2026-02-18T14:30:00.000Z", "originalQty": "40", "remainingQty": "40", "costBasisPerShare": "485", "costBasisRemaining": "19400" }
+        ],
+        "SPY": [
+          { "openedAt": "2026-01-09T14:30:00.000Z", "originalQty": "60", "remainingQty": "60", "costBasisPerShare": "590", "costBasisRemaining": "35400" },
+          { "openedAt": "2026-02-03T14:30:00.000Z", "originalQty": "25", "remainingQty": "25", "costBasisPerShare": "595", "costBasisRemaining": "14875" },
+          { "openedAt": "2026-02-20T14:30:00.000Z", "originalQty": "40", "remainingQty": "40", "costBasisPerShare": "600", "costBasisRemaining": "24000" }
+        ],
+        "INTC": [
+          { "openedAt": "2026-01-13T14:30:00.000Z", "originalQty": "150", "remainingQty": "150", "costBasisPerShare": "22", "costBasisRemaining": "3300" }
+        ]
+      },
+      "expectedRealizedPnl": {
+        "cumulative": "7550",
+        "trades": [
+          {
+            "instrument": "QQQ",
+            "sellDate": "2026-01-26T14:30:00.000Z",
+            "qty": "30",
+            "proceeds": "14700",
+            "costBasis": "14400",
+            "realizedPnl": "300"
+          },
+          {
+            "instrument": "MSFT",
+            "sellDate": "2026-02-09T14:30:00.000Z",
+            "qty": "200",
+            "proceeds": "84000",
+            "costBasis": "80000",
+            "realizedPnl": "4000"
+          },
+          {
+            "instrument": "AAPL",
+            "sellDate": "2026-02-16T14:30:00.000Z",
+            "qty": "90",
+            "proceeds": "15750",
+            "costBasis": "13500",
+            "realizedPnl": "2250"
+          },
+          {
+            "instrument": "QQQ",
+            "sellDate": "2026-03-02T14:30:00.000Z",
+            "qty": "50",
+            "proceeds": "25000",
+            "costBasis": "24000",
+            "realizedPnl": "1000"
+          }
+        ]
+      },
+      "expectedPortfolioValue": {
+        "totalValue": "183885",
+        "totalCostBasis": "179425",
+        "unrealizedPnl": "4460",
+        "realizedPnl": "7550",
+        "holdings": {
+          "AAPL": { "qty": "90", "value": "15570", "costBasis": "14600" },
+          "MSFT": { "qty": "100", "value": "42600", "costBasis": "42500" },
+          "VTI": { "qty": "100", "value": "25850", "costBasis": "25350" },
+          "QQQ": { "qty": "40", "value": "19960", "costBasis": "19400" },
+          "SPY": { "qty": "125", "value": "76125", "costBasis": "74275" },
+          "INTC": { "qty": "150", "value": "3780", "costBasis": "3300" }
+        }
+      }
+    },
+    {
+      "date": "2026-03-17",
+      "dayIndex": 52,
+      "description": "Final state. All positions, all cumulative PnL. 6 instruments held.",
+      "expectedLotState": {
+        "AAPL": [
+          { "openedAt": "2026-01-12T14:30:00.000Z", "originalQty": "50", "remainingQty": "20", "costBasisPerShare": "160", "costBasisRemaining": "3200" },
+          { "openedAt": "2026-02-02T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "170", "costBasisRemaining": "5100" },
+          { "openedAt": "2026-03-16T14:30:00.000Z", "originalQty": "20", "remainingQty": "20", "costBasisPerShare": "178", "costBasisRemaining": "3560" }
+        ],
+        "MSFT": [
+          { "openedAt": "2026-03-02T15:00:00.000Z", "originalQty": "100", "remainingQty": "50", "costBasisPerShare": "425", "costBasisRemaining": "21250" }
+        ],
+        "VTI": [
+          { "openedAt": "2026-01-06T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "250", "costBasisRemaining": "12500" },
+          { "openedAt": "2026-01-20T14:30:00.000Z", "originalQty": "30", "remainingQty": "30", "costBasisPerShare": "255", "costBasisRemaining": "7650" },
+          { "openedAt": "2026-02-10T14:30:00.000Z", "originalQty": "20", "remainingQty": "20", "costBasisPerShare": "260", "costBasisRemaining": "5200" },
+          { "openedAt": "2026-03-10T14:30:00.000Z", "originalQty": "10", "remainingQty": "10", "costBasisPerShare": "265", "costBasisRemaining": "2650" }
+        ],
+        "QQQ": [
+          { "openedAt": "2026-02-18T14:30:00.000Z", "originalQty": "40", "remainingQty": "40", "costBasisPerShare": "485", "costBasisRemaining": "19400" },
+          { "openedAt": "2026-03-12T14:30:00.000Z", "originalQty": "20", "remainingQty": "20", "costBasisPerShare": "495", "costBasisRemaining": "9900" }
+        ],
+        "SPY": [
+          { "openedAt": "2026-01-09T14:30:00.000Z", "originalQty": "60", "remainingQty": "30", "costBasisPerShare": "590", "costBasisRemaining": "17700" },
+          { "openedAt": "2026-02-03T14:30:00.000Z", "originalQty": "25", "remainingQty": "25", "costBasisPerShare": "595", "costBasisRemaining": "14875" },
+          { "openedAt": "2026-02-20T14:30:00.000Z", "originalQty": "40", "remainingQty": "40", "costBasisPerShare": "600", "costBasisRemaining": "24000" }
+        ],
+        "INTC": [
+          { "openedAt": "2026-01-13T14:30:00.000Z", "originalQty": "150", "remainingQty": "150", "costBasisPerShare": "22", "costBasisRemaining": "3300" },
+          { "openedAt": "2026-03-05T14:30:00.000Z", "originalQty": "50", "remainingQty": "50", "costBasisPerShare": "24", "costBasisRemaining": "1200" }
+        ]
+      },
+      "expectedRealizedPnl": {
+        "cumulative": "9300",
+        "trades": [
+          {
+            "instrument": "QQQ",
+            "sellDate": "2026-01-26T14:30:00.000Z",
+            "qty": "30",
+            "proceeds": "14700",
+            "costBasis": "14400",
+            "realizedPnl": "300"
+          },
+          {
+            "instrument": "MSFT",
+            "sellDate": "2026-02-09T14:30:00.000Z",
+            "qty": "200",
+            "proceeds": "84000",
+            "costBasis": "80000",
+            "realizedPnl": "4000"
+          },
+          {
+            "instrument": "AAPL",
+            "sellDate": "2026-02-16T14:30:00.000Z",
+            "qty": "90",
+            "proceeds": "15750",
+            "costBasis": "13500",
+            "realizedPnl": "2250"
+          },
+          {
+            "instrument": "QQQ",
+            "sellDate": "2026-03-02T14:30:00.000Z",
+            "qty": "50",
+            "proceeds": "25000",
+            "costBasis": "24000",
+            "realizedPnl": "1000"
+          },
+          {
+            "instrument": "AAPL",
+            "sellDate": "2026-03-09T14:30:00.000Z",
+            "qty": "10",
+            "proceeds": "1800",
+            "costBasis": "1500",
+            "realizedPnl": "300",
+            "fromLot": "Lot 1 remainder (10 @ $150)"
+          },
+          {
+            "instrument": "AAPL",
+            "sellDate": "2026-03-09T14:30:00.000Z",
+            "qty": "30",
+            "proceeds": "5400",
+            "costBasis": "4800",
+            "realizedPnl": "600",
+            "fromLot": "Lot 2 partial (30 of 50 @ $160)"
+          },
+          {
+            "instrument": "SPY",
+            "sellDate": "2026-03-11T14:30:00.000Z",
+            "qty": "30",
+            "proceeds": "18300",
+            "costBasis": "17700",
+            "realizedPnl": "600"
+          },
+          {
+            "instrument": "MSFT",
+            "sellDate": "2026-03-17T14:30:00.000Z",
+            "qty": "50",
+            "proceeds": "21500",
+            "costBasis": "21250",
+            "realizedPnl": "250"
+          }
+        ]
+      },
+      "expectedPortfolioValue": {
+        "totalValue": "156530",
+        "totalCostBasis": "151485",
+        "unrealizedPnl": "5045",
+        "realizedPnl": "9300",
+        "holdings": {
+          "AAPL": { "qty": "70", "value": "12460", "costBasis": "11860" },
+          "MSFT": { "qty": "50", "value": "21550", "costBasis": "21250" },
+          "VTI": { "qty": "110", "value": "28710", "costBasis": "28000" },
+          "QQQ": { "qty": "60", "value": "30240", "costBasis": "29300" },
+          "SPY": { "qty": "95", "value": "58330", "costBasis": "56575" },
+          "INTC": { "qty": "200", "value": "5240", "costBasis": "4500" }
+        }
+      }
+    }
+  ]
+}
