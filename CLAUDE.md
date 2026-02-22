@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-22 (Post-Session 4)
+**Last Updated:** 2026-02-22 (Post-Session 5)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -304,6 +304,84 @@ Codes: `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `CONFLICT` (409), `SELL_VALI
 - Decimal values are strings in all responses — UI must parse at render time.
 - Instrument creation auto-maps exchange→exchangeTz and builds providerSymbolMap.
 - `providerSymbolMap` is returned as a parsed object (not JSON string) in instrument responses.
+
+---
+
+## UI Component Catalog (Session 5)
+
+### Design System
+
+| File | Purpose |
+|------|---------|
+| `apps/web/src/app/globals.css` | Tailwind v4 `@theme` config: colors, fonts, spacing. Dark financial theme. |
+| `apps/web/src/app/layout.tsx` | Root layout with Google Fonts (Crimson Pro, DM Sans, JetBrains Mono) |
+| `apps/web/src/lib/cn.ts` | `cn()` utility — `clsx` + `tailwind-merge` |
+| `apps/web/src/lib/format.ts` | Numeric formatting: currency, percent, quantity, compact, date, relative time |
+| `apps/web/postcss.config.mjs` | PostCSS config for Tailwind v4 |
+
+**Tailwind v4 Note:** No `tailwind.config.ts`. Theme is CSS-based via `@theme` directives in `globals.css`. Font variables use `--font-*-ref` pattern to avoid self-referential CSS variables (next/font sets `--font-heading-ref`, theme maps it to `--font-heading`).
+
+### Token Classes
+
+Colors: `bg-bg-primary`, `bg-bg-secondary`, `bg-bg-tertiary`, `text-text-primary`, `text-text-secondary`, `text-text-tertiary`, `border-border-primary`, `bg-accent-primary` (gold), `bg-accent-positive` (green), `bg-accent-negative` (red), `bg-accent-warning` (amber), `bg-accent-info` (blue).
+
+Typography: `font-heading` (Crimson Pro), `font-body` (DM Sans), `font-mono` (JetBrains Mono).
+
+Spacing: `p-card` (1rem), `p-section` (1.5rem), `px-page` (2rem).
+
+### Base UI Components (`apps/web/src/components/ui/`)
+
+| Component | Key Props | Notes |
+|-----------|-----------|-------|
+| `Button` | `variant`: primary/secondary/ghost/danger, `size`: sm/md/lg, `loading`, `disabled` | Focus ring, spinner |
+| `Input` | `label`, `error`, `hint` + standard HTML input props | Dark bg, error styling |
+| `Select` | `label`, `options`, `error`, `placeholder` | Native select, styled like Input |
+| `Card` | `title?`, `children`, `className` | `bg-bg-secondary` container |
+| `Badge` | `variant`: positive/negative/warning/info/neutral, `size`: sm/md | Pill-shaped |
+| `Table` | `columns`, `data`, `onSort`, `emptyMessage` | Numeric cols right-aligned in font-mono |
+| `Tooltip` | `content`, `side`, `children` | CSS-only hover tooltip |
+| `Toast` | `ToastProvider` + `useToast()` hook | Context-based, auto-dismiss, slide animation |
+| `Modal` | `open`, `onClose`, `title`, `children` | Backdrop, Escape key, focus trap |
+| `PillToggle` | `options`, `value`, `onChange` | Horizontal pill selector |
+| `Skeleton` | `width?`, `height?` | Pulse animation placeholder |
+| `ValueChange` | `value`, `format`: currency/percent | Green/red with arrows |
+
+### Layout Components (`apps/web/src/components/layout/`)
+
+| Component | Purpose |
+|-----------|---------|
+| `Shell` | Wraps NavTabs + content + DataHealthFooter + AdvisorFAB |
+| `NavTabs` | 4 tabs: Dashboard, Holdings, Transactions, Charts. Active state via `usePathname()` |
+| `DataHealthFooter` | Fixed bottom bar with mock health stats. TODO: wire to `/api/market/status` |
+| `AdvisorFAB` | Fixed circular button bottom-right. TODO: wire to advisor panel |
+
+### Empty States (`apps/web/src/components/empty-states/`)
+
+| Component | Content |
+|-----------|---------|
+| `DashboardEmpty` | "Add your first holding" + primary CTA |
+| `HoldingsEmpty` | Same as Dashboard |
+| `TransactionsEmpty` | Informational text only |
+| `AdvisorEmpty` | Conditional: `hasHoldings` → suggested prompts, else "add holdings first" |
+
+### Page Routes (`apps/web/src/app/(pages)/`)
+
+Route group `(pages)` uses Shell layout. Pages: `/` (DashboardEmpty), `/holdings` (HoldingsEmpty), `/transactions` (TransactionsEmpty), `/charts` (placeholder).
+
+### Formatting Utilities (`apps/web/src/lib/format.ts`)
+
+All functions accept **string** inputs (Decimal serialization from API). Use `Decimal.js` internally — never `parseFloat`.
+
+| Function | Signature | Example |
+|----------|-----------|---------|
+| `formatCurrency` | `(value: string, opts?: { showSign? }) => string` | `"12345.67"` → `"$12,345.67"` |
+| `formatPercent` | `(value: string, opts?: { showSign?, decimals? }) => string` | `"5.678"` → `"5.68%"` |
+| `formatQuantity` | `(value: string) => string` | `"1234"` → `"1,234"` |
+| `formatCompact` | `(value: string) => string` | `"1234567.89"` → `"$1.2M"` |
+| `formatDate` | `(isoString: string) => string` | `"2026-02-18T16:00:00Z"` → `"Feb 18, 2026"` |
+| `formatRelativeTime` | `(isoString: string) => string` | Recent → `"5 min ago"` |
+
+Invalid inputs return `"—"` (em dash). Zero never shows as negative.
 
 ---
 

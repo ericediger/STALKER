@@ -1,7 +1,7 @@
 # AGENTS.md — STALKER Tech Stack & Design Decisions
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-22 (Post-Session 4)
+**Last Updated:** 2026-02-22 (Post-Session 5)
 
 ---
 
@@ -16,11 +16,12 @@
 | **Decimal math** | Decimal.js 10.x + Prisma Decimal | Stored as TEXT in SQLite, exact financial arithmetic |
 | **Timezone** | date-fns 3.x + date-fns-tz 3.x | IANA timezone strings, automatic DST handling |
 | **Market calendar** | Custom `MarketCalendar` module | Weekday check only for MVP |
-| **UI styling** | Tailwind CSS | Utility-first, design tokens from UX Plan |
-| **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Google Fonts |
+| **UI styling** | Tailwind CSS 4.2 | CSS-based `@theme` config (no tailwind.config.ts), PostCSS integration |
+| **UI utilities** | clsx + tailwind-merge | `cn()` utility for conditional class merging |
+| **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Google Fonts via next/font |
 | **Charting** | TradingView Lightweight Charts | MIT license, financial-purpose, lightweight |
 | **Monorepo** | pnpm 10.30.1 workspaces | Native, fast, no Turborepo/Nx needed |
-| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 275 tests passing |
+| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 324 tests passing |
 | **Validation** | Zod 4.3.6 | Input validation for API routes |
 | **IDs** | ULID 2.x | Sortable, no coordination, SQLite-friendly |
 | **Process manager** | concurrently 9.x | Runs Next.js + scheduler together via `pnpm dev` |
