@@ -32,20 +32,6 @@ function parseDateStr(dateStr: string): Date {
 }
 
 /**
- * Deep-copy an array of Lot objects.
- * Decimal values are immutable so shallow spread is sufficient per-lot.
- */
-function copyLots(lots: Lot[]): Lot[] {
-  return lots.map((l) => ({
-    ...l,
-    remainingQty: l.remainingQty,
-    originalQty: l.originalQty,
-    price: l.price,
-    costBasisRemaining: l.costBasisRemaining,
-  }));
-}
-
-/**
  * Build portfolio value snapshots for a date range.
  *
  * Deletes existing snapshots from startDate forward, then computes and writes

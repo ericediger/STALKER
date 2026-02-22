@@ -9,9 +9,16 @@
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
+    "@stalker/analytics": "workspace:*",
+    "@stalker/market-data": "workspace:*",
+    "@stalker/shared": "workspace:*",
     "next": "^15.2.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.3.6"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
