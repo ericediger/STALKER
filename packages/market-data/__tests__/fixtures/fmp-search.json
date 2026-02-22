@@ -1,0 +1,16 @@
+[
+  {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "currency": "USD",
+    "stockExchange": "NASDAQ Global Select",
+    "exchangeShortName": "NASDAQ"
+  },
+  {
+    "symbol": "AAPD",
+    "name": "Direxion Daily AAPL Bear 1X Shares",
+    "currency": "USD",
+    "stockExchange": "NASDAQ Global Market",
+    "exchangeShortName": "NASDAQ"
+  }
+]
