@@ -3,10 +3,10 @@
 import { useRef, useEffect } from "react";
 import {
   createChart,
+  AreaSeries,
   type IChartApi,
   type ISeriesApi,
-  type AreaData,
-  type Time,
+  type SeriesType,
   CrosshairMode,
 } from "lightweight-charts";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -22,7 +22,7 @@ const CHART_HEIGHT = 300;
 export function PortfolioChart({ timeseries, isLoading }: PortfolioChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
 
   // Create chart on mount, dispose on unmount
   useEffect(() => {
@@ -45,7 +45,7 @@ export function PortfolioChart({ timeseries, isLoading }: PortfolioChartProps) {
       rightPriceScale: { borderColor: "#1e2028" },
     });
 
-    const series = chart.addAreaSeries({
+    const series = chart.addSeries(AreaSeries, {
       lineColor: "#c9a84c",
       topColor: "rgba(201, 168, 76, 0.4)",
       bottomColor: "rgba(201, 168, 76, 0.0)",

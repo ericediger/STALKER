@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-22 (Post-Session 5)
+**Last Updated:** 2026-02-22 (Post-Session 6)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -352,7 +352,7 @@ Spacing: `p-card` (1rem), `p-section` (1.5rem), `px-page` (2rem).
 |-----------|---------|
 | `Shell` | Wraps NavTabs + content + DataHealthFooter + AdvisorFAB |
 | `NavTabs` | 4 tabs: Dashboard, Holdings, Transactions, Charts. Active state via `usePathname()` |
-| `DataHealthFooter` | Fixed bottom bar with mock health stats. TODO: wire to `/api/market/status` |
+| `DataHealthFooter` | Fixed bottom bar wired to `GET /api/market/status` — instrument count, polling, budget, freshness |
 | `AdvisorFAB` | Fixed circular button bottom-right. TODO: wire to advisor panel |
 
 ### Empty States (`apps/web/src/components/empty-states/`)
@@ -366,7 +366,7 @@ Spacing: `p-card` (1rem), `p-section` (1.5rem), `px-page` (2rem).
 
 ### Page Routes (`apps/web/src/app/(pages)/`)
 
-Route group `(pages)` uses Shell layout. Pages: `/` (DashboardEmpty), `/holdings` (HoldingsEmpty), `/transactions` (TransactionsEmpty), `/charts` (placeholder).
+Route group `(pages)` uses Shell layout. Pages: `/` (Dashboard — data-wired), `/holdings` (Holdings — data-wired), `/transactions` (TransactionsEmpty), `/charts` (placeholder).
 
 ### Formatting Utilities (`apps/web/src/lib/format.ts`)
 
@@ -382,6 +382,67 @@ All functions accept **string** inputs (Decimal serialization from API). Use `De
 | `formatRelativeTime` | `(isoString: string) => string` | Recent → `"5 min ago"` |
 
 Invalid inputs return `"—"` (em dash). Zero never shows as negative.
+
+---
+
+## Session 6 — Dashboard + Holdings UI
+
+### Dashboard Components (`apps/web/src/components/dashboard/`)
+
+| Component | Props | Notes |
+|-----------|-------|-------|
+| `HeroMetric` | `snapshot: PortfolioSnapshot \| null`, `isLoading` | Crimson Pro 4xl total value, ValueChange for day change |
+| `SummaryCards` | `snapshot`, `isLoading` | 3 cards: Total Gain/Loss (uses `add()` from shared), Unrealized PnL, Realized PnL |
+| `PortfolioChart` | `timeseries: TimeseriesPoint[]`, `isLoading` | TradingView Lightweight Charts v5 area chart |
+| `WindowSelector` | `value: WindowOption`, `onChange` | Wraps PillToggle with 1D/1W/1M/3M/1Y/ALL options |
+
+### Holdings Components (`apps/web/src/components/holdings/`)
+
+| Component | Props | Notes |
+|-----------|-------|-------|
+| `HoldingsTable` | `holdings`, `compact?`, `onSort?`, `sortColumn?`, `sortDirection?`, `staleInstruments?` | `compact` mode for dashboard (no sort/staleness) |
+| `TotalsRow` | `holdings: Holding[]` | Footer with total value + total unrealized PnL |
+| `StalenessIndicator` | `lastUpdated: string` | Amber Badge with Tooltip showing full date |
+| `StalenessBanner` | `staleInstruments: StaleInstrument[]` | Conditional amber warning banner |
+
+### Data Fetching Hooks (`apps/web/src/lib/hooks/`)
+
+Pattern: `useState` + `useEffect` with cancellation flag. No SWR (AD-1).
+
+| Hook | Params | Returns |
+|------|--------|---------|
+| `usePortfolioSnapshot` | `window: WindowOption` | `{ data: PortfolioSnapshot \| null, isLoading, error }` |
+| `usePortfolioTimeseries` | `window: WindowOption` | `{ data: TimeseriesPoint[], isLoading, error }` |
+| `useHoldings` | none | `{ data: Holding[] \| null, isLoading, error }` |
+| `useMarketStatus` | none | `{ data: MarketStatus \| null, isLoading, error }` |
+
+### Utility Functions
+
+| File | Functions | Notes |
+|------|-----------|-------|
+| `window-utils.ts` | `getWindowDateRange(window, today?)`, `WindowOption`, `WINDOW_OPTIONS`, `DEFAULT_WINDOW` | Maps PillToggle option to `{ startDate?, endDate }` |
+| `chart-utils.ts` | `toAreaChartData(timeseries)`, `TimeseriesPoint` | Converts API response to TradingView AreaData. **This is the ONE place `Number()` is used** — TradingView requires numeric values. |
+| `holdings-utils.ts` | `sortHoldings()`, `computeAllocation()`, `computeTotals()`, `isSymbolStale()` | All arithmetic via `Decimal.js`. Types: `Holding`, `SortColumn`, `SortDirection` |
+
+### TradingView Lightweight Charts v5 Integration
+
+**API change in v5:** Use `chart.addSeries(AreaSeries, options)` — NOT `chart.addAreaSeries()` (removed in v5).
+
+Lifecycle pattern in `PortfolioChart.tsx`:
+1. `useRef<HTMLDivElement>` for container, `useRef<IChartApi>` for chart instance
+2. `useEffect` — create chart on mount with dark theme, add area series, return cleanup (`chart.remove()`)
+3. Separate `useEffect` — update series data when `timeseries` prop changes, call `fitContent()`
+4. `ResizeObserver` on container for responsive width
+5. Area series: gold gradient (`#c9a84c` → transparent), dark bg `#0a0b0d`, grid `#1e2028`
+6. Empty state: centered "No data for selected window" when no data points
+
+### Decimal Exception for Charts (AD-4 Note)
+
+TradingView Lightweight Charts requires `number` values for chart data points. The `chart-utils.ts` file is the **only** approved location for `Number()` / `parseFloat()` on financial values. This is documented inline with a comment. All other UI code must use `formatCurrency()`, `formatPercent()`, etc.
+
+### Seed Data
+
+`apps/web/prisma/seed.ts` creates 28 instruments with ~300 trading days of price bars each (8300+ bars total), 30 transactions, and 28 latest quotes (3 intentionally stale for testing staleness indicators).
 
 ---
 

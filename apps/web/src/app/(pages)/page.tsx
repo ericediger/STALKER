@@ -6,14 +6,18 @@ import { HeroMetric } from "@/components/dashboard/HeroMetric";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { PortfolioChart } from "@/components/dashboard/PortfolioChart";
 import { WindowSelector } from "@/components/dashboard/WindowSelector";
+import { HoldingsTable } from "@/components/holdings/HoldingsTable";
 import { usePortfolioSnapshot } from "@/lib/hooks/usePortfolioSnapshot";
 import { usePortfolioTimeseries } from "@/lib/hooks/usePortfolioTimeseries";
+import { useHoldings } from "@/lib/hooks/useHoldings";
 import { DEFAULT_WINDOW, type WindowOption } from "@/lib/window-utils";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function DashboardPage() {
   const [selectedWindow, setSelectedWindow] = useState<WindowOption>(DEFAULT_WINDOW);
   const { data: snapshot, isLoading: snapshotLoading } = usePortfolioSnapshot(selectedWindow);
   const { data: timeseries, isLoading: timeseriesLoading } = usePortfolioTimeseries(selectedWindow);
+  const { data: holdings, isLoading: holdingsLoading } = useHoldings();
 
   // Show empty state when not loading and no holdings
   const isEmpty =
@@ -38,7 +42,11 @@ export default function DashboardPage() {
         <SummaryCards snapshot={snapshot} isLoading={snapshotLoading} />
       </div>
 
-      {/* TODO: HoldingsTable compact view — integrate when holdings-engineer delivers */}
+      {holdingsLoading ? (
+        <Skeleton height="200px" className="w-full rounded-lg" />
+      ) : holdings && holdings.length > 0 ? (
+        <HoldingsTable holdings={holdings} compact />
+      ) : null}
     </div>
   );
 }
