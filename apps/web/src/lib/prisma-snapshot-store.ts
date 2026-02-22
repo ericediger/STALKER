@@ -2,8 +2,6 @@ import type { SnapshotStore } from '@stalker/analytics';
 import type { PortfolioValueSnapshot, HoldingSnapshot } from '@stalker/shared';
 import type { PrismaClient, PortfolioValueSnapshot as PrismaSnapshot } from '@prisma/client';
 import { toDecimal } from '@stalker/shared';
-import type { Decimal } from 'decimal.js';
-
 /**
  * Convert a Prisma PortfolioValueSnapshot row to the shared PortfolioValueSnapshot type.
  * Prisma Decimal != decimal.js Decimal, so we convert via toString().
@@ -42,7 +40,7 @@ function rowToSnapshot(row: PrismaSnapshot): PortfolioValueSnapshot {
 function serializeHoldings(holdingsJson: Record<string, HoldingSnapshot>): string {
   return JSON.stringify(holdingsJson, (_key: string, value: unknown) => {
     if (value !== null && typeof value === 'object' && 'toFixed' in (value as Record<string, unknown>)) {
-      return (value as Decimal).toString();
+      return (value as { toString(): string }).toString();
     }
     return value;
   });

@@ -19,9 +19,9 @@
   --color-accent-info: #3b82f6;
 
   /* Typography — font families from next/font CSS variables */
-  --font-heading: var(--font-heading);
-  --font-body: var(--font-body);
-  --font-mono: var(--font-mono);
+  --font-heading: var(--font-heading-ref);
+  --font-body: var(--font-body-ref);
+  --font-mono: var(--font-mono-ref);
 
   /* Font sizes — information-dense base (~14px) */
   --text-xs: 0.625rem;

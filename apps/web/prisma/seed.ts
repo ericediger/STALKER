@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { ulid } from 'ulid';
+import { generateUlid } from '@stalker/shared';
 
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
-  const instrumentId = ulid();
+  const instrumentId = generateUlid();
 
   // 1. Create a single instrument
   await prisma.instrument.upsert({
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   if (!existingTx) {
     await prisma.transaction.create({
       data: {
-        id: ulid(),
+        id: generateUlid(),
         instrumentId: instrument.id,
         type: 'BUY',
         quantity: '100',

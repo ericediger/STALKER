@@ -5,21 +5,21 @@ import './globals.css';
 const crimsonPro = Crimson_Pro({
   subsets: ['latin'],
   weight: ['400', '600', '700'],
-  variable: '--font-heading',
+  variable: '--font-heading-ref',
   display: 'swap',
 });
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
-  variable: '--font-body',
+  variable: '--font-body-ref',
   display: 'swap',
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   weight: ['400', '500'],
-  variable: '--font-mono',
+  variable: '--font-mono-ref',
   display: 'swap',
 });
 

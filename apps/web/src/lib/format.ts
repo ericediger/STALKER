@@ -41,8 +41,8 @@ function formatCurrencyFromDecimal(
   const isNeg = val.isNegative();
   const abs = val.abs();
   const fixed = abs.toFixed(2);
-  const [intPart, decPart] = fixed.split('.');
-  const formatted = addThousandsSeparators(intPart) + '.' + decPart;
+  const parts = fixed.split('.');
+  const formatted = addThousandsSeparators(parts[0] ?? '0') + '.' + (parts[1] ?? '00');
 
   if (isNeg) {
     return '-$' + formatted;
@@ -130,12 +130,12 @@ export function formatQuantity(value: string): string {
 
   if (decimalPlaces > 0) {
     const fixed = normalized.toFixed(decimalPlaces);
-    const [intPart, decPart] = fixed.split('.');
-    return addThousandsSeparators(intPart) + '.' + decPart;
+    const parts = fixed.split('.');
+    return addThousandsSeparators(parts[0] ?? '0') + '.' + (parts[1] ?? '');
   }
 
   // Integer — just add separators
-  const intStr = str.includes('.') ? str.split('.')[0] : str;
+  const intStr = str.includes('.') ? (str.split('.')[0] ?? str) : str;
   return addThousandsSeparators(intStr);
 }
 
