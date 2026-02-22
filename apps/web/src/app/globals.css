@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors — dark financial theme */
+  --color-bg-primary: #0a0b0d;
+  --color-bg-secondary: #12141a;
+  --color-bg-tertiary: #1a1d26;
+
+  --color-text-primary: #e8e6e3;
+  --color-text-secondary: #8b8d93;
+  --color-text-tertiary: #55575e;
+
+  --color-border-primary: #1e2028;
+
+  --color-accent-primary: #c9a84c;
+  --color-accent-positive: #22c55e;
+  --color-accent-negative: #ef4444;
+  --color-accent-warning: #f59e0b;
+  --color-accent-info: #3b82f6;
+
+  /* Typography — font families from next/font CSS variables */
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  /* Font sizes — information-dense base (~14px) */
+  --text-xs: 0.625rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+
+  /* Spacing semantic aliases */
+  --spacing-card: 1rem;
+  --spacing-section: 1.5rem;
+  --spacing-page: 2rem;
+}
+
+body {
+  @apply bg-bg-primary text-text-primary font-body text-base antialiased;
+}
+
+/* Tabular figures for numeric columns */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(201, 168, 76, 0.3);
+}
+
+/* Focus ring */
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-accent-primary;
+}

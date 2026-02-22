@@ -1,4 +1,27 @@
 import type { Metadata } from 'next';
+import { Crimson_Pro, DM_Sans, JetBrains_Mono } from 'next/font/google';
+import './globals.css';
+
+const crimsonPro = Crimson_Pro({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-heading',
+  display: 'swap',
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-body',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'STALKER — Portfolio Tracker',
@@ -11,7 +34,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${crimsonPro.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}
+    >
       <body>{children}</body>
     </html>
   );
