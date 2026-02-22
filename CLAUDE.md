@@ -1,7 +1,11 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-21 (Post-Session 2)
+**Last Updated:** 2026-02-21 (Post-Session 3)
+**Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
+**GitHub:** https://github.com/ericediger/STALKER
+
+> **Note:** The codename and GitHub repo are **STALKER**; the local working directory is **STOCKER**. These refer to the same project.
 
 ---
 
@@ -179,6 +183,54 @@ The scheduler and Next.js are separate Node processes. Each maintains its own ra
 ### Provider Test Fixtures
 
 Market data provider tests use fixture files (`packages/market-data/__tests__/fixtures/`) captured from real API responses. If provider response formats change, update the fixture files rather than modifying parsing logic first. Each fixture file matches a specific API endpoint response shape.
+
+---
+
+## Analytics Package Interface Pattern (Session 3)
+
+The analytics package (`packages/analytics/`) uses dependency-injected interfaces to stay decoupled from Prisma and market-data. Session 4 must provide Prisma-backed implementations.
+
+### Key Interfaces
+
+| Interface | Defined In | Purpose |
+|-----------|-----------|---------|
+| `PriceLookup` | `packages/analytics/src/interfaces.ts` | Abstracts price bar queries (exact date, carry-forward, first bar date) |
+| `SnapshotStore` | `packages/analytics/src/interfaces.ts` | Abstracts snapshot CRUD (delete, write, read by range/date) |
+| `CalendarFns` | `packages/analytics/src/value-series.ts` | Minimal calendar interface (`getNextTradingDay`, `isTradingDay`) |
+
+### How Session 4 Should Wire Prisma Implementations
+
+1. **`PriceLookup` (Prisma-backed):** Implement `getClosePriceOrCarryForward()` as `SELECT close FROM PriceBar WHERE instrumentId = ? AND date <= ? ORDER BY date DESC LIMIT 1`. Return `isCarryForward: actualDate !== requestedDate`.
+
+2. **`SnapshotStore` (Prisma-backed):** Implement against the `PortfolioValueSnapshot` Prisma model. `deleteFrom(date)` → `DELETE WHERE date >= ?`. `writeBatch(snapshots)` → `createMany()`. `getRange/getByDate` → standard Prisma queries.
+
+3. **Calendar:** Import `{ getNextTradingDay, isTradingDay }` from `@stalker/market-data` and pass as `calendar` parameter.
+
+### Rebuild Trigger for Transaction CRUD
+
+After any transaction insert/edit/delete, API routes call:
+```typescript
+import { rebuildSnapshotsFrom } from '@stalker/analytics';
+
+await rebuildSnapshotsFrom({
+  affectedDate,       // earliest tradeAt that changed (YYYY-MM-DD)
+  transactions,       // full transaction set (post-change)
+  instruments,        // all instruments
+  priceLookup,        // Prisma-backed implementation
+  snapshotStore,      // Prisma-backed implementation
+  calendar,           // { getNextTradingDay, isTradingDay }
+});
+```
+
+### Reference Portfolio Fixtures
+
+Location: `data/test/`
+- `reference-portfolio.json` — 6 instruments, 25 transactions, ~56 trading days of mock prices
+- `expected-outputs.json` — Hand-computed expected values at 6 checkpoint dates
+- `computation-notes.md` — Documents all manual calculations
+- Tests: `packages/analytics/__tests__/reference-portfolio.test.ts` (24 tests)
+
+Purpose: Regression guard for the analytics engine. Covers FIFO multi-lot sells, full position close, re-entry, backdated transactions, and carry-forward pricing.
 
 ---
 
