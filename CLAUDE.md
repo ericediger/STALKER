@@ -151,9 +151,22 @@ Every transaction write (create, edit, delete) must:
 
 - Framework: Vitest
 - Tests live in `__tests__/` directories within each package
-- Financial tests assert Decimal values via `.toString()` comparison
+- Financial tests assert Decimal values via `.toString()` comparison (note: Prisma Decimal may use scientific notation e.g. `1e-8` — use `.equals()` for Prisma Decimal round-trip assertions)
 - Mock external APIs (HTTP responses), never call live providers in tests
 - Target: comprehensive coverage of lot engine, PnL, validation, calendar, and all API endpoints
+
+---
+
+## Environment Files
+
+Two `.env` files exist in `apps/web/` with distinct purposes:
+
+| File | Purpose | Used By |
+|------|---------|---------|
+| `apps/web/.env` | Prisma `DATABASE_URL` | Prisma CLI (`prisma db push`, `prisma generate`) |
+| `apps/web/.env.local` | Next.js app config, API keys, all runtime env vars | Next.js dev server, overrides `.env` values |
+
+The scheduler (`packages/scheduler/`) loads its own env vars using `dotenv`, pointing to the appropriate `.env.local` file. This separation exists because Prisma needs `DATABASE_URL` even when `env.local` isn't present (e.g., during `prisma generate` in CI).
 
 ---
 

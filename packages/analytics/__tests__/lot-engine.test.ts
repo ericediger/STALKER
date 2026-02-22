@@ -202,4 +202,41 @@ describe('processTransactions (FIFO lot engine)', () => {
     // proceeds=1500, cost=2000, pnl=-500
     expect(result.realizedTrades[0]!.realizedPnl.toString()).toBe('-500');
   });
+
+  it('PF-3: backdated BUY inserted between existing BUY and SELL replays correctly via FIFO', () => {
+    // Scenario (Risk R-1):
+    //   1. BUY 100 @ $10 on Jan 1
+    //   2. SELL 50 @ $15 on Feb 1
+    //   3. Backdated BUY 50 @ $8 on Jan 15
+    // Full replay with transactions sorted by tradeAt:
+    //   Jan 1:  BUY 100 @$10 → Lot1(100@$10)
+    //   Jan 15: BUY  50 @$8  → Lot2(50@$8)
+    //   Feb 1:  SELL 50 @$15 → FIFO consumes from Lot1 first
+    const txs = [
+      makeTx({ type: 'BUY', quantity: '100', price: '10', tradeAt: new Date('2025-01-01') }),
+      makeTx({ type: 'BUY', quantity: '50', price: '8', tradeAt: new Date('2025-01-15') }),
+      makeTx({ type: 'SELL', quantity: '50', price: '15', tradeAt: new Date('2025-02-01') }),
+    ];
+
+    const result = processTransactions(txs);
+
+    // Open lots after replay:
+    // Lot1: 100 bought, 50 sold → 50 remaining @$10
+    // Lot2: 50 bought, 0 sold → 50 remaining @$8
+    expect(result.lots).toHaveLength(2);
+    expect(result.lots[0]!.remainingQty.toString()).toBe('50');
+    expect(result.lots[0]!.price.toString()).toBe('10');
+    expect(result.lots[0]!.costBasisRemaining.toString()).toBe('500');
+    expect(result.lots[1]!.remainingQty.toString()).toBe('50');
+    expect(result.lots[1]!.price.toString()).toBe('8');
+    expect(result.lots[1]!.costBasisRemaining.toString()).toBe('400');
+
+    // Realized PnL on the sell: 50 shares from Lot1 (FIFO)
+    // proceeds = 50 * 15 = 750, cost = 50 * 10 = 500, pnl = 250
+    expect(result.realizedTrades).toHaveLength(1);
+    expect(result.realizedTrades[0]!.qty.toString()).toBe('50');
+    expect(result.realizedTrades[0]!.proceeds.toString()).toBe('750');
+    expect(result.realizedTrades[0]!.costBasis.toString()).toBe('500');
+    expect(result.realizedTrades[0]!.realizedPnl.toString()).toBe('250');
+  });
 });

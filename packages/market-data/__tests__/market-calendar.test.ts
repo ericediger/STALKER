@@ -166,3 +166,36 @@ describe('getNextTradingDay', () => {
     expect(result.toISOString()).toContain('2025-01-13'); // Monday
   });
 });
+
+describe('PF-4: DST boundary tests', () => {
+  describe('2026 Spring Forward (March 8)', () => {
+    it('getPriorTradingDay(Monday March 9) → Friday March 6', () => {
+      // 2026-03-09 is a Monday. DST spring forward happens Sunday March 8, 2026.
+      const result = getPriorTradingDay(new Date('2026-03-09T12:00:00Z'), 'NYSE');
+      expect(result.toISOString()).toContain('2026-03-06'); // Friday
+    });
+
+    it('getNextTradingDay(Friday March 6) → Monday March 9', () => {
+      const result = getNextTradingDay(new Date('2026-03-06T12:00:00Z'), 'NYSE');
+      expect(result.toISOString()).toContain('2026-03-09'); // Monday
+    });
+
+    it('getSessionTimes(Monday March 9) → 13:30-20:00 UTC (EDT)', () => {
+      // After spring forward: EDT = UTC-4
+      // 9:30 AM ET = 13:30 UTC, 4:00 PM ET = 20:00 UTC
+      const { open, close } = getSessionTimes(new Date('2026-03-09T15:00:00Z'), 'NYSE');
+      expect(open.toISOString()).toBe('2026-03-09T13:30:00.000Z');
+      expect(close.toISOString()).toBe('2026-03-09T20:00:00.000Z');
+    });
+  });
+
+  describe('2025 Fall Back (November 2)', () => {
+    it('getSessionTimes(Monday November 3) → 14:30-21:00 UTC (EST)', () => {
+      // After fall back: EST = UTC-5
+      // 9:30 AM ET = 14:30 UTC, 4:00 PM ET = 21:00 UTC
+      const { open, close } = getSessionTimes(new Date('2025-11-03T16:00:00Z'), 'NYSE');
+      expect(open.toISOString()).toBe('2025-11-03T14:30:00.000Z');
+      expect(close.toISOString()).toBe('2025-11-03T21:00:00.000Z');
+    });
+  });
+});
