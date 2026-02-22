@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-21 (Post-Session 1)
+**Last Updated:** 2026-02-21 (Post-Session 2)
 
 ---
 
@@ -167,6 +167,18 @@ Two `.env` files exist in `apps/web/` with distinct purposes:
 | `apps/web/.env.local` | Next.js app config, API keys, all runtime env vars | Next.js dev server, overrides `.env` values |
 
 The scheduler (`packages/scheduler/`) loads its own env vars using `dotenv`, pointing to the appropriate `.env.local` file. This separation exists because Prisma needs `DATABASE_URL` even when `env.local` isn't present (e.g., during `prisma generate` in CI).
+
+---
+
+## Known Limitations
+
+### Rate Limiter Is In-Process Only (AD-2)
+
+The scheduler and Next.js are separate Node processes. Each maintains its own rate limiter state. This means a manual refresh (via Next.js API route) immediately after a scheduler poll could exceed the provider's actual rate limit. For MVP, this is acceptable: single user, manual refresh is rare, providers have some tolerance. Post-MVP mitigation: track call counts in a SQLite table (`ProviderCallLog`) that both processes read.
+
+### Provider Test Fixtures
+
+Market data provider tests use fixture files (`packages/market-data/__tests__/fixtures/`) captured from real API responses. If provider response formats change, update the fixture files rather than modifying parsing logic first. Each fixture file matches a specific API endpoint response shape.
 
 ---
 

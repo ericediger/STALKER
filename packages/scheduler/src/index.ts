@@ -1,9 +1,15 @@
 import { PrismaClient } from '@prisma/client';
-import type { Instrument, InstrumentType, Quote } from '@stalker/shared';
+import type { Instrument, InstrumentType } from '@stalker/shared';
+import {
+  MarketDataService,
+  FmpProvider,
+  StooqProvider,
+  AlphaVantageProvider,
+} from '@stalker/market-data';
 import { loadConfig } from './config.js';
 import { checkBudget } from './budget.js';
 import { Poller } from './poller.js';
-import type { MarketDataServiceLike, InstrumentFetcher } from './poller.js';
+import type { InstrumentFetcher } from './poller.js';
 
 // Re-export for library consumers
 export { loadConfig } from './config.js';
@@ -12,17 +18,6 @@ export type { BudgetResult } from './budget.js';
 export { Poller } from './poller.js';
 export type { MarketDataServiceLike, InstrumentFetcher, PollerOptions } from './poller.js';
 export type { SchedulerConfig } from './config.js';
-
-/**
- * Stub MarketDataService for use until the real one from @stalker/market-data is integrated.
- * Logs a warning and returns null for all quote requests.
- */
-class StubMarketDataService implements MarketDataServiceLike {
-  async getQuote(instrument: Instrument): Promise<Quote | null> {
-    console.warn(`[scheduler] MarketDataService not yet wired — stub called for ${instrument.symbol}`);
-    return null;
-  }
-}
 
 /**
  * Create an instrument fetcher function backed by Prisma.
@@ -64,8 +59,18 @@ async function main(): Promise<void> {
     },
   });
 
-  // 3. Initialize MarketDataService (stub for now)
-  const marketDataService: MarketDataServiceLike = new StubMarketDataService();
+  // 3. Initialize MarketDataService with real providers
+  // Providers read API keys from process.env (already loaded by dotenv in loadConfig)
+  const fmpProvider = new FmpProvider();
+  const stooqProvider = new StooqProvider();
+  const alphaVantageProvider = new AlphaVantageProvider();
+
+  const marketDataService = new MarketDataService({
+    primaryProvider: fmpProvider,
+    secondaryProvider: alphaVantageProvider,
+    historyProvider: stooqProvider,
+    prisma,
+  });
 
   // 4. Run budget check
   const fetchInstruments = createInstrumentFetcher(prisma);
