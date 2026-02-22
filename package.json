@@ -2,7 +2,7 @@
   "name": "stalker",
   "private": true,
   "scripts": {
-    "dev": "concurrently --names web,scheduler --prefix-colors blue,green \"pnpm --filter web dev\" \"pnpm --filter @stalker/scheduler dev\"",
+    "dev": "concurrently -n web,sched -c blue,green \"pnpm --filter web dev\" \"pnpm --filter @stalker/scheduler start\"",
     "build": "pnpm --filter web build",
     "test": "vitest",
     "lint": "tsc --noEmit",
