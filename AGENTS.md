@@ -126,7 +126,7 @@ Breaking any link in this chain means the next session starts with stale context
 
 ## Environment Variables
 
-All configuration via `.env.local` at the project root:
+All configuration via `apps/web/.env.local`:
 
 ```env
 # Market Data Providers

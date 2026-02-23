@@ -34,5 +34,13 @@ apps/web/prisma/migrations/
 .DS_Store
 Thumbs.db
 
+# Generated (auto-created by Next.js / TypeScript)
+next-env.d.ts
+*.tsbuildinfo
+
+# Claude Code
+.claude/settings.local.json
+.claude/worktrees/
+
 # Test
 coverage/

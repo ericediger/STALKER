@@ -1,11 +1,19 @@
 # STALKER Master Plan — Engineering Roadmap
 
 **Project:** Stock & Portfolio Tracker + LLM Advisor (Codename: STALKER)
-**Version:** 1.0
-**Date:** 2026-02-21
+**Version:** 2.0
+**Date:** 2026-02-22
 **Author:** Engineering Lead
 **Inputs:** SPEC v4.0, Product Brief v3.1, UX/UI Design Plan v1.0, Bookworm Style Guide
-**Status:** Planning Complete — Ready for Session 1
+**Status:** Sessions 1–7 Complete — Session 8 Next
+
+### Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 2.1 | 2026-02-23 | Session 7 complete (407 tests). Updated Epic 6B, session tracker, test progression, critical path. AD-S7 confirmed. Risks R-8/R-9 resolved. |
+| 2.0 | 2026-02-22 | Updated status tracker (S1–S6 complete), resolved risks R-3/R-7, added architecture decisions from execution (AD-S1 through AD-S6), added Session 7 plan/kickoff references, added lessons learned section |
+| 1.0 | 2026-02-21 | Initial roadmap. 9 sessions across 10 epics. |
 
 ---
 
@@ -35,7 +43,7 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 
 ## 2. Epic Breakdown
 
-### Epic 0: Project Scaffolding & Data Foundation
+### Epic 0: Project Scaffolding & Data Foundation ✅
 
 **Goal:** Establish the monorepo, database schema, shared packages, and core utilities that every other epic depends on.
 
@@ -49,12 +57,13 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Basic CI: `tsc --noEmit`, Vitest config
 - `.env.local` template
 
+**Status:** ✅ Complete (Session 1)
 **Depends on:** Nothing
 **Blocks:** All other epics
 
 ---
 
-### Epic 1: Market Data Service
+### Epic 1: Market Data Service ✅
 
 **Goal:** Build the provider-agnostic market data layer with rate limiting, fallback, and caching.
 
@@ -69,12 +78,13 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Provider symbol mapping (instrument `providerSymbolMap`)
 - Unit tests for each provider (mocked HTTP), rate limiter, fallback logic
 
+**Status:** ✅ Complete (Session 2)
 **Depends on:** Epic 0 (shared types, Prisma schema)
 **Blocks:** Epic 3 (API layer needs market data), Epic 4 (Scheduler)
 
 ---
 
-### Epic 2: Analytics Engine
+### Epic 2: Analytics Engine ✅
 
 **Goal:** Implement the event-sourced analytics core — FIFO lot accounting, PnL computation, and portfolio value series.
 
@@ -89,12 +99,13 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Flexible window query support (Spec 5.6)
 - Unit tests with manually computed expected values
 
+**Status:** ✅ Complete (Sessions 1 + 3)
 **Depends on:** Epic 0 (shared types, Decimal utils, MarketCalendar)
 **Blocks:** Epic 3 (API), Epic 7 (Advisor tools), Epic 8 (PnL Validation)
 
 ---
 
-### Epic 3: API Layer
+### Epic 3: API Layer ✅
 
 **Goal:** Build all Next.js App Router API endpoints for instruments, transactions, portfolio analytics, and market data.
 
@@ -109,12 +120,13 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Request/response types matching spec contracts
 - Integration tests for key flows
 
+**Status:** ✅ Complete (Session 4)
 **Depends on:** Epic 0, Epic 1 (market data), Epic 2 (analytics)
 **Blocks:** Epic 6 (UI needs API), Epic 7 (Advisor API route)
 
 ---
 
-### Epic 4: Scheduler
+### Epic 4: Scheduler ✅
 
 **Goal:** Build the standalone Node polling process for quote updates and post-close snapshot rebuilds.
 
@@ -128,12 +140,13 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - `concurrently` setup in root `pnpm dev` script
 - Integration test (mocked providers, verify polling behavior)
 
+**Status:** ✅ Complete (Session 2)
 **Depends on:** Epic 0 (MarketCalendar), Epic 1 (market data service)
 **Blocks:** Nothing (scheduler runs independently)
 
 ---
 
-### Epic 5: UI Foundation
+### Epic 5: UI Foundation ✅
 
 **Goal:** Establish the design system, base components, layout shell, and empty states.
 
@@ -146,18 +159,19 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Empty states for all five pages (Spec 9.6, UX Plan)
 - Responsive foundation (breakpoints per UX Plan Section 9)
 
+**Status:** ✅ Complete (Session 5)
 **Depends on:** Epic 0 (project structure)
 **Blocks:** Epic 6 (core pages need components)
 
 ---
 
-### Epic 6: UI Core Pages
+### Epic 6: UI Core Pages ✅
 
 **Goal:** Build the four main pages: Dashboard, Holding Detail, Transactions, and Charts.
 
 **Sub-epics:**
 
-#### Epic 6A: Dashboard + Holdings
+#### Epic 6A: Dashboard + Holdings ✅
 - Hero metric block (total value, day change with MarketCalendar)
 - Portfolio area chart (TradingView Lightweight Charts)
 - Window selector (1D/1W/1M/3M/1Y/ALL)
@@ -167,12 +181,17 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Data health footer wired to `/api/market/status`
 - Holdings page (enhanced table with filters, totals row, add instrument button)
 
-#### Epic 6B: Holding Detail + Transactions + Charts
+**Status:** ✅ Complete (Session 6)
+
+#### Epic 6B: Holding Detail + Transactions + Charts ✅
 - Holding detail page: position summary, candlestick chart, lots table, transaction history
 - Transaction page: table with sort/filter, add/edit form, validation error display
-- Add instrument flow (symbol search → create → backfill → toast)
+- Add instrument flow (manual entry with 409 duplicate detection)
 - Charts page: single-instrument viewer with symbol selector
-- Delete confirmation modals
+- Delete confirmation modals with sell validation handling
+- Shared `useChart` hook extracted (AD-S7)
+
+**Status:** ✅ Complete (Session 7)
 
 **Depends on:** Epic 3 (API), Epic 5 (UI foundation)
 **Blocks:** Epic 7 (advisor UI)
@@ -195,6 +214,7 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Suggested prompts on first interaction
 - Setup state when API key is missing
 
+**Status:** Not started (Session 8)
 **Depends on:** Epic 2 (analytics for tools), Epic 3 (API), Epic 5 (UI components)
 **Blocks:** Nothing
 
@@ -211,6 +231,7 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Fixture-based unit tests in `packages/analytics/` asserting to the cent
 - Full-stack cross-validation plan (API + UI manual verification)
 
+**Status:** Partially complete (fixtures built in Session 3; full-stack cross-validation in Session 9)
 **Depends on:** Epic 2 (analytics engine)
 **Blocks:** MVP signoff
 
@@ -229,6 +250,7 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 - Cross-browser testing
 - Known issues and tech debt documentation
 
+**Status:** Not started (Session 9)
 **Depends on:** All core epics complete
 **Blocks:** Nothing (this is the final phase)
 
@@ -239,34 +261,34 @@ A technically literate individual tracking 15–20 ETFs/stocks. Not day-trading.
 ### Dependency Chain
 
 ```
-Session 1 (Scaffolding + Data + Calendar + Analytics Core)
-    ├──→ Session 2 (Market Data Service + Scheduler)
-    └──→ Session 3 (Analytics Completion + PnL Fixtures)
-              └──→ Session 4 (API Layer)
-                        ├──→ Session 5 (UI Foundation + Empty States)
-                        │         └──→ Session 6 (Dashboard + Holdings UI)
-                        │                   └──→ Session 7 (Detail + Transactions + Charts UI)
-                        └──→ Session 8 (LLM Advisor Backend + Frontend)
+Session 1 (Scaffolding + Data + Calendar + Analytics Core) ✅
+    ├──→ Session 2 (Market Data Service + Scheduler) ✅
+    └──→ Session 3 (Analytics Completion + PnL Fixtures) ✅
+              └──→ Session 4 (API Layer) ✅
+                        ├──→ Session 5 (UI Foundation + Empty States) ✅
+                        │         └──→ Session 6 (Dashboard + Holdings UI) ✅
+                        │                   └──→ Session 7 (Detail + Transactions + Charts UI) ✅
+                        └──→ Session 8 (LLM Advisor Backend + Frontend) ← NEXT
                                           └──→ Session 9 (Full-Stack Validation + Polish)
 ```
 
 ### Session Overview
 
-| Session | Epic(s) | Scope | Team Shape | Est. Complexity |
-|---------|---------|-------|------------|-----------------|
-| 1 | 0 + 2 (partial) | Monorepo, Prisma, shared utils, MarketCalendar, FIFO lot engine | Lead + 2 teammates (parallel) | High |
-| 2 | 1 + 4 | All market data providers, rate limiter, fallback, scheduler | Lead + 2 teammates (parallel) | High |
-| 3 | 2 (completion) + 8 | Portfolio value series, snapshot rebuild, reference portfolio fixtures, PnL tests | Lead + 2 teammates (sequenced) | High |
-| 4 | 3 | All API endpoints, instrument creation flow, transaction validation flow | Lead + 2 teammates (parallel) | High |
-| 5 | 5 | Tailwind config, design tokens, base components, layout shell, empty states | Lead + 2 teammates (parallel) | Medium |
-| 6 | 6A | Dashboard page, holdings page, TradingView charts, data health footer | Lead + 2 teammates (parallel) | High |
-| 7 | 6B | Holding detail, transactions page, add/edit forms, charts page | Lead + 2 teammates (parallel) | High |
-| 8 | 7 | LLM adapter, tools, system prompt, chat panel UI, thread management | Lead + 2 teammates (sequenced) | High |
-| 9 | 8 (validation) + 9 | Full-stack cross-validation, bulk paste, accessibility, polish | Lead + 2 teammates (parallel) | Medium |
+| Session | Epic(s) | Scope | Team Shape | Est. Complexity | Status |
+|---------|---------|-------|------------|-----------------|--------|
+| 1 | 0 + 2 (partial) | Monorepo, Prisma, shared utils, MarketCalendar, FIFO lot engine | Lead + 2 teammates (parallel) | High | ✅ |
+| 2 | 1 + 4 | All market data providers, rate limiter, fallback, scheduler | Lead + 2 teammates (parallel) | High | ✅ |
+| 3 | 2 (completion) + 8 | Portfolio value series, snapshot rebuild, reference portfolio fixtures, PnL tests | Lead + 2 teammates (sequenced) | High | ✅ |
+| 4 | 3 | All API endpoints, instrument creation flow, transaction validation flow | Lead + 2 teammates (parallel) | High | ✅ |
+| 5 | 5 | Tailwind config, design tokens, base components, layout shell, empty states | Lead + 2 teammates (parallel) | Medium | ✅ |
+| 6 | 6A | Dashboard page, holdings page, TradingView charts, data health footer | Lead + 2 teammates (parallel) | High | ✅ |
+| 7 | 6B | Holding detail, transactions page, add/edit forms, charts page | Lead + 2 teammates (parallel) | High | ✅ |
+| 8 | 7 | LLM adapter, tools, system prompt, chat panel UI, thread management | Lead + 2 teammates (sequenced) | High | Not started |
+| 9 | 8 (validation) + 9 | Full-stack cross-validation, bulk paste, accessibility, polish | Lead + 2 teammates (parallel) | Medium | Not started |
 
 ### Session Details
 
-#### Session 1: Foundation + Analytics Core
+#### Session 1: Foundation + Analytics Core ✅
 **Epics:** 0 (full) + 2 (FIFO engine, sell validation, unrealized PnL)
 
 Build the entire project foundation and the analytics core that everything else depends on. The monorepo structure, database schema, shared utilities, and the FIFO lot accounting engine are all session-1 scope. This is the highest-risk session — if the data model or lot engine is wrong, everything downstream is wrong.
@@ -277,9 +299,11 @@ Build the entire project foundation and the analytics core that everything else 
 
 **Parallel:** Yes — teammates work independently. Scaffolding engineer sets up structure; analytics engineer builds into `packages/` directories.
 
+**Result:** 71 tests. Foundation solid. No scope cuts.
+
 ---
 
-#### Session 2: Market Data Service + Scheduler
+#### Session 2: Market Data Service + Scheduler ✅
 **Epics:** 1 (full) + 4 (full)
 
 Build all three market data providers, the rate limiter, fallback chain, and the standalone scheduler. This session has external API dependencies — providers must be tested against mocked responses, not live APIs.
@@ -290,9 +314,11 @@ Build all three market data providers, the rate limiter, fallback chain, and the
 
 **Parallel:** Yes — scheduler engineer can stub the market data service interface while market-data-engineer builds it.
 
+**Result:** 162 tests (+91). All providers implemented. No scope cuts.
+
 ---
 
-#### Session 3: Analytics Completion + PnL Validation Fixtures
+#### Session 3: Analytics Completion + PnL Validation Fixtures ✅
 **Epics:** 2 (remainder) + 8
 
 Complete the portfolio value series builder, snapshot rebuild logic, and build the reference portfolio with independently computed expected outputs.
@@ -303,9 +329,11 @@ Complete the portfolio value series builder, snapshot rebuild logic, and build t
 
 **Sequenced:** Teammate 1 completes the portfolio value series → Lead verifies → Teammate 2 builds fixtures and tests against it.
 
+**Result:** 218 tests (+56). Reference portfolio fixtures in place. No scope cuts.
+
 ---
 
-#### Session 4: API Layer
+#### Session 4: API Layer ✅
 **Epic:** 3 (full)
 
 Build all Next.js App Router API endpoints. Every endpoint must validate inputs, enforce the sell invariant on writes, trigger appropriate rebuilds, and return properly shaped responses.
@@ -316,9 +344,11 @@ Build all Next.js App Router API endpoints. Every endpoint must validate inputs,
 
 **Parallel:** Yes — CRUD and analytics endpoints are independent.
 
+**Result:** 275 tests (+57). All endpoints implemented. No scope cuts.
+
 ---
 
-#### Session 5: UI Foundation
+#### Session 5: UI Foundation ✅
 **Epic:** 5 (full)
 
 Build the complete design system and component library. This session is design-heavy — the UX Plan and Style Guide are the primary references.
@@ -329,9 +359,11 @@ Build the complete design system and component library. This session is design-h
 
 **Parallel:** Yes — design system and components can be built simultaneously (component engineer uses token variables).
 
+**Result:** 324 tests (+49). Full component library. No scope cuts. R-7 (tabular-nums) verified working.
+
 ---
 
-#### Session 6: Dashboard + Holdings UI
+#### Session 6: Dashboard + Holdings UI ✅
 **Epic:** 6A
 
 Build the two most important pages. The dashboard is the product's front door — it must communicate portfolio health in under two seconds.
@@ -342,18 +374,24 @@ Build the two most important pages. The dashboard is the product's front door �
 
 **Parallel:** Yes — dashboard above-the-fold and holdings table are independent components.
 
+**Result:** 363 tests (+39). 17/17 blocking criteria met. Zero scope cuts. R-3 (TradingView theming) verified — dark theme, custom colors, crosshair all work with v5 API. Enriched seed data: 28 instruments, 30 transactions, 8300+ price bars.
+
+**Notable:** TradingView v5 API change caught during lead integration — `addSeries(AreaSeries, opts)` replaces removed `addAreaSeries()`. Fixed in integration pass.
+
 ---
 
-#### Session 7: Detail + Transactions + Charts UI
+#### Session 7: Detail + Transactions + Charts UI ✅
 **Epic:** 6B
 
-Build the remaining core pages. The transaction form's validation UX is critical — users must understand immediately why a sell was rejected.
+Built the remaining core pages. Every page except the advisor chat is now functional with live data.
 
 **Teammate split:**
-- **Teammate 1 (`detail-engineer`):** Holding detail page (position summary, candlestick chart, lots table, transaction history, unpriced warning)
-- **Teammate 2 (`transactions-engineer`):** Transactions page (table, filters, add/edit form with validation, delete confirmation), add instrument flow (search modal), charts page
+- **Teammate 1 (`detail-engineer`):** Holding detail page (position summary, candlestick chart, lots table, transaction history, unpriced warning), charts page, shared `useChart` hook extraction
+- **Teammate 2 (`transactions-engineer`):** Transactions page (table, filters, add/edit form with validation, delete confirmation), add instrument flow (manual entry modal), sell validation error display
 
 **Parallel:** Yes — holding detail and transactions page are independent.
+
+**Result:** 407 tests (+44). 21/21 blocking criteria met, 6/6 non-blocking criteria met. Zero scope cuts. SellValidationError component shows deficit quantity, violation date, and suggested fix. Shared `useChart` hook (AD-S7) confirmed working for both area and candlestick charts.
 
 ---
 
@@ -403,39 +441,72 @@ All decisions are **final unless explicitly revisited** in a planning session.
 
 ---
 
-## 5. Checklist Matrix Usage
+## 5. Architecture Decisions from Execution
+
+Decisions made during sessions that refine or extend the strategic decisions above. These are binding going forward.
+
+| # | Session | Decision | Rationale |
+|---|---------|----------|-----------|
+| AD-S1 | S1 | Prisma Decimal stored as TEXT in SQLite — application-code comparison only, no SQL numeric comparisons | SQLite has no native DECIMAL type. TEXT preserves exact representation. Queries that need numeric comparison use Decimal.js in application code. |
+| AD-S4 | S4 | Sell validation returns HTTP 422 with structured error body: `{ error, details: { instrumentSymbol, firstNegativeDate, deficitQuantity } }` | Structured error enables the UI to render a specific, actionable error message rather than a generic rejection. |
+| AD-S6a | S6 | Client-side `fetch` + `useState`/`useEffect`, no SWR or global state manager | Minimal dependencies. Single user, no cache invalidation needed. <20 instruments means no global state coordination required. |
+| AD-S6b | S6 | TradingView v5 with `useRef` lifecycle pattern | Imperative chart API requires ref-based create/dispose. ResizeObserver for responsive width. |
+| AD-S6c | S6 | `Number()` exception only in `chart-utils.ts` and `chart-candlestick-utils.ts` | TradingView requires native numbers. All other display code uses Decimal string → formatter pipeline. This exception is documented and contained. |
+| AD-S6d | S6 | Enriched seed: 28 instruments, 30 transactions, 8300+ price bars, 3 intentionally stale quotes | Realistic data environment for UI development. Stale quotes exercise staleness UX paths. Carried forward for all future sessions. |
+| AD-S7 | S7 | Extract shared `useChart` hook from Session 6 area chart for reuse with candlestick chart | Prevents two divergent chart lifecycles. Hook handles create/dispose/resize; series type is a parameter. Confirmed working in both PortfolioChart (area) and CandlestickChart. |
+
+---
+
+## 6. Checklist Matrix Usage
 
 The `TEAM-CHECKLIST.md` contains four checklists: Frontend, Backend, QA, and UX/UI. Each session applies the relevant subset:
 
 | Session | Checklists Applied | Focus Areas |
 |---------|-------------------|-------------|
-| 1 (Foundation) | Backend: General, Code Quality, CI/CD | Type safety, test coverage, build pipeline |
-| 2 (Market Data) | Backend: General, Code Quality, Performance, Security | Rate limiter correctness, API key handling, error paths |
-| 3 (Analytics + Fixtures) | Backend: Code Quality, Performance | Decimal precision, edge cases, test coverage thresholds |
-| 4 (API) | Backend: API & Contracts, Security, Performance | Schema validation, error codes, auth-free security, input sanitization |
-| 5 (UI Foundation) | Frontend: General, Component Quality, UI/UX, Performance | Design system compliance, accessibility, bundle size |
-| 6 (Dashboard) | Frontend: All sections, UX/UI: Visual Design, Interaction Design | Chart theming, responsive layout, numeric formatting, staleness UX |
+| 1 (Foundation) ✅ | Backend: General, Code Quality, CI/CD | Type safety, test coverage, build pipeline |
+| 2 (Market Data) ✅ | Backend: General, Code Quality, Performance, Security | Rate limiter correctness, API key handling, error paths |
+| 3 (Analytics + Fixtures) ✅ | Backend: Code Quality, Performance | Decimal precision, edge cases, test coverage thresholds |
+| 4 (API) ✅ | Backend: API & Contracts, Security, Performance | Schema validation, error codes, auth-free security, input sanitization |
+| 5 (UI Foundation) ✅ | Frontend: General, Component Quality, UI/UX, Performance | Design system compliance, accessibility, bundle size |
+| 6 (Dashboard) ✅ | Frontend: All sections, UX/UI: Visual Design, Interaction Design | Chart theming, responsive layout, numeric formatting, staleness UX |
 | 7 (Detail + Transactions) | Frontend: All sections, UX/UI: All sections | Form validation UX, accessibility, keyboard navigation |
 | 8 (Advisor) | Backend + Frontend: All sections | LLM error handling, streaming UX, tool call visibility |
 | 9 (Validation) | QA: All sections, UX/UI: Post-Release Review | Regression, cross-validation, PnL accuracy, accessibility audit |
 
 ---
 
-## 6. Risk Register
+## 7. Risk Register
 
-| # | Risk | Likelihood | Impact | Mitigation |
-|---|------|-----------|--------|------------|
-| R-1 | FIFO lot math has edge cases | Medium | Critical | Reference portfolio fixture catches regressions. Test partial sells, full closes, backdated inserts. |
-| R-2 | Free-tier API limits change | Medium | Medium | Limits are env-configurable (Spec 6.2). Budget check at startup. Staleness indicator covers gaps. |
-| R-3 | TradingView chart theming too limited | Low | Low | Custom tooltip overlay if built-in styling insufficient. Verify during Session 6. |
-| R-4 | Prisma Decimal + SQLite TEXT causes comparison issues | Medium | Medium | Application-code comparison only. No SQL numeric comparisons on Decimal columns. Document in CLAUDE.md. |
-| R-5 | Advisor system prompt quality | Medium | High | Write and test prompt against 5 intent categories before building UI. Iterate in Session 8. |
-| R-6 | Snapshot rebuild performance at scale | Low | Low | Single user, <100 instruments. Sub-second replay. Optimize only if measured. |
-| R-7 | DM Sans tabular-nums not working via Google Fonts | Low | Medium | Verify during Session 5. Fallback: JetBrains Mono for numeric columns. |
+| # | Risk | Likelihood | Impact | Status |
+|---|------|-----------|--------|--------|
+| R-1 | FIFO lot math has edge cases | Medium | Critical | **Open.** Reference portfolio fixture (S3) catches regressions. Full-stack cross-validation in S9 is the final gate. |
+| R-2 | Free-tier API limits change | Medium | Medium | **Open.** Limits are env-configurable (Spec 6.2). Budget check at startup. Staleness indicator covers gaps. No issues observed through S6. |
+| R-3 | TradingView chart theming too limited | Low | Low | ✅ **Resolved (S6).** Dark theme, custom colors, crosshair all work with v5 API. No custom tooltip overlay needed. v5 API change (`addSeries` pattern) caught and fixed during integration. |
+| R-4 | Prisma Decimal + SQLite TEXT causes comparison issues | Medium | Medium | **Open.** AD-S1 enforces application-code comparison only. No SQL numeric comparisons on Decimal columns. No issues observed through S6. |
+| R-5 | Advisor system prompt quality | Medium | High | **Open.** Write and test prompt against 5 intent categories before building UI. Targeted for Session 8. |
+| R-6 | Snapshot rebuild performance at scale | Low | Low | **Open.** Single user, <100 instruments. Sub-second replay expected. Optimize only if measured. No issues observed through S6 with 28 instruments. |
+| R-7 | DM Sans tabular-nums not working via Google Fonts | Low | Medium | ✅ **Resolved (S5/S6).** `font-mono` applied to numeric table columns. Holdings table alignment confirmed correct across all numeric columns. |
+| R-8 | Sell validation error UX unclear to user | Medium | High | ✅ **Resolved (S7).** SellValidationError component shows deficit quantity, first violation date, and suggested fix. Inline display below form — form stays open for adjustment. |
+| R-9 | Multi-fetch waterfall on holding detail page | Medium | Low | ✅ **Resolved (S7).** Holding detail uses separate hooks; no waterfall observed. |
 
 ---
 
-## 7. Not in Roadmap
+## 8. Lessons Learned
+
+Patterns that have proven effective across Sessions 1–6 and should be continued:
+
+| # | Lesson | Evidence |
+|---|--------|----------|
+| L-1 | **Lead integration pass catches real bugs.** | S6: TradingView v5 API change, HoldingsTable wiring, snapshot test fragility — all caught during lead integration, not by either teammate. |
+| L-2 | **Enriched seed data pays for itself immediately.** | S6: 28 instruments + 3 stale quotes gave realistic data for every UI component. Carried forward as AD-S6d. |
+| L-3 | **Zero scope cuts through 6 sessions.** | The session planning process is sizing work correctly. If S7 or S8 requires cuts, use the prioritized scope cut list in the session plan. |
+| L-4 | **Test progression is healthy and consistent.** | S1: 71 → S2: 162 → S3: 218 → S4: 275 → S5: 324 → S6: 363. ~40–90 new tests per session. No regressions. |
+| L-5 | **`Number()` exception discipline is holding.** | AD-S6c: Only `chart-utils.ts` uses `Number()` for TradingView. All other code uses Decimal formatters. Must extend to `chart-candlestick-utils.ts` in S7 and verify no new leaks. |
+| L-6 | **Parallel teammate mode works when filesystem scopes don't overlap.** | 5 of 6 completed sessions used parallel mode with zero merge conflicts reported. Continue enforcing non-overlapping filesystem scopes. |
+
+---
+
+## 9. Not in Roadmap
 
 Ideas captured but explicitly deferred past MVP and Next:
 
@@ -455,16 +526,37 @@ Ideas captured but explicitly deferred past MVP and Next:
 
 ---
 
-## 8. Session Status Tracker
+## 10. Session Status Tracker
 
-| Session | Status | Date | Report |
-|---------|--------|------|--------|
-| 1 | **Planned** | — | — |
-| 2 | Not started | — | — |
-| 3 | Not started | — | — |
-| 4 | Not started | — | — |
-| 5 | Not started | — | — |
-| 6 | Not started | — | — |
-| 7 | Not started | — | — |
-| 8 | Not started | — | — |
-| 9 | Not started | — | — |
+| Session | Status | Date | Tests | Notes |
+|---------|--------|------|-------|-------|
+| 1 | ✅ Complete | 2026-02-21 | 71 | Foundation + FIFO engine. No scope cuts. |
+| 2 | ✅ Complete | 2026-02-21 | 162 (+91) | Market data providers + scheduler. No scope cuts. |
+| 3 | ✅ Complete | 2026-02-21 | 218 (+56) | Analytics completion + PnL fixtures. No scope cuts. |
+| 4 | ✅ Complete | 2026-02-22 | 275 (+57) | Full API layer. No scope cuts. |
+| 5 | ✅ Complete | 2026-02-22 | 324 (+49) | UI foundation + components. No scope cuts. |
+| 6 | ✅ Complete | 2026-02-22 | 363 (+39) | Dashboard + holdings. 17/17 blocking. Zero scope cuts. |
+| 7 | ✅ Complete | 2026-02-23 | 407 (+44) | Holding detail, transactions, charts. 21/21 blocking. Zero scope cuts. |
+| 8 | Not started | — | — | LLM Advisor (backend sequenced → frontend). |
+| 9 | Not started | — | — | Full-stack validation + polish. MVP signoff gate. |
+
+### Test Progression
+
+```
+S1: ████████ 71
+S2: ████████████████ 162
+S3: ██████████████████████ 218
+S4: ████████████████████████████ 275
+S5: █████████████████████████████████ 324
+S6: ████████████████████████████████████ 363
+S7: █████████████████████████████████████████ 407
+```
+
+### Remaining Critical Path
+
+```
+Session 8 (LLM Advisor) ← NEXT
+    └──→ Session 9 (Validation + Polish + MVP Signoff)
+```
+
+Two sessions remain. No blockers. No scope debt carried forward.
