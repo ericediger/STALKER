@@ -4,10 +4,14 @@ import type { HoldingTransaction } from "@/lib/hooks/useHoldingDetail";
 
 interface HoldingTransactionsProps {
   transactions: HoldingTransaction[];
+  onEdit?: (tx: HoldingTransaction) => void;
+  onDelete?: (tx: HoldingTransaction) => void;
 }
 
 export function HoldingTransactions({
   transactions,
+  onEdit,
+  onDelete,
 }: HoldingTransactionsProps) {
   const sorted = [...transactions].sort(
     (a, b) => new Date(b.tradeAt).getTime() - new Date(a.tradeAt).getTime(),
@@ -82,11 +86,11 @@ export function HoldingTransactions({
                 </td>
                 <td className="px-3 py-2 text-right">
                   <span className="inline-flex items-center gap-2">
-                    {/* Edit icon — onClick to be wired by lead */}
                     <button
                       type="button"
                       className="text-text-tertiary hover:text-text-primary transition-colors p-1"
                       aria-label="Edit transaction"
+                      onClick={() => onEdit?.(tx)}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -103,11 +107,11 @@ export function HoldingTransactions({
                         <path d="m15 5 4 4" />
                       </svg>
                     </button>
-                    {/* Delete icon — onClick to be wired by lead */}
                     <button
                       type="button"
                       className="text-text-tertiary hover:text-accent-negative transition-colors p-1"
                       aria-label="Delete transaction"
+                      onClick={() => onDelete?.(tx)}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"

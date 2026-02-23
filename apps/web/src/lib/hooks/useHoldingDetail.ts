@@ -57,6 +57,7 @@ export function useHoldingDetail(symbol: string) {
   const [data, setData] = useState<HoldingDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [fetchKey, setFetchKey] = useState(0);
 
   useEffect(() => {
     if (!symbol) return;
@@ -71,7 +72,9 @@ export function useHoldingDetail(symbol: string) {
       .then(setData)
       .catch(setError)
       .finally(() => setIsLoading(false));
-  }, [symbol]);
+  }, [symbol, fetchKey]);
 
-  return { data, isLoading, error };
+  const refetch = () => setFetchKey((k) => k + 1);
+
+  return { data, isLoading, error, refetch };
 }

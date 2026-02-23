@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardEmpty } from "@/components/empty-states/DashboardEmpty";
 import { HeroMetric } from "@/components/dashboard/HeroMetric";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
@@ -14,10 +15,15 @@ import { DEFAULT_WINDOW, type WindowOption } from "@/lib/window-utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [selectedWindow, setSelectedWindow] = useState<WindowOption>(DEFAULT_WINDOW);
   const { data: snapshot, isLoading: snapshotLoading } = usePortfolioSnapshot(selectedWindow);
   const { data: timeseries, isLoading: timeseriesLoading } = usePortfolioTimeseries(selectedWindow);
   const { data: holdings, isLoading: holdingsLoading } = useHoldings();
+
+  const handleRowClick = useCallback((symbol: string) => {
+    router.push(`/holdings/${encodeURIComponent(symbol)}`);
+  }, [router]);
 
   // Show empty state when not loading and no holdings
   const isEmpty =
@@ -45,7 +51,7 @@ export default function DashboardPage() {
       {holdingsLoading ? (
         <Skeleton height="200px" className="w-full rounded-lg" />
       ) : holdings && holdings.length > 0 ? (
-        <HoldingsTable holdings={holdings} compact />
+        <HoldingsTable holdings={holdings} compact onRowClick={handleRowClick} />
       ) : null}
     </div>
   );

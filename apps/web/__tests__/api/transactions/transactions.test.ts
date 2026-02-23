@@ -211,7 +211,7 @@ describe('Transaction CRUD API', () => {
   describe('GET /api/transactions', () => {
     it('returns transactions filtered by instrumentId', async () => {
       mockPrismaClient.transaction.findMany.mockResolvedValue([
-        mockTransaction({ instrumentId: 'inst-1' }),
+        mockTransaction({ instrumentId: 'inst-1', instrument: mockInstrument({ id: 'inst-1', symbol: 'AAPL', name: 'Apple Inc.' }) }),
       ]);
 
       const req = makeRequest('/api/transactions?instrumentId=inst-1');
@@ -223,14 +223,23 @@ describe('Transaction CRUD API', () => {
       // Verify decimals are serialized as strings
       expect(typeof body[0].quantity).toBe('string');
       expect(typeof body[0].price).toBe('string');
+      // Verify instrument symbol is included
+      expect(body[0].symbol).toBe('AAPL');
+      expect(body[0].instrumentName).toBe('Apple Inc.');
     });
 
-    it('returns 400 when instrumentId is missing', async () => {
+    it('returns all transactions when instrumentId is omitted', async () => {
+      mockPrismaClient.transaction.findMany.mockResolvedValue([
+        mockTransaction({ instrumentId: 'inst-1', instrument: mockInstrument({ id: 'inst-1', symbol: 'AAPL', name: 'Apple Inc.' }) }),
+        mockTransaction({ id: 'tx-2', instrumentId: 'inst-2', instrument: mockInstrument({ id: 'inst-2', symbol: 'MSFT', name: 'Microsoft Corporation' }) }),
+      ]);
+
       const req = makeRequest('/api/transactions');
       const res = await GET(req);
+      const body = await res.json();
 
-      expect(res.status).toBe(400);
-      expect((await res.json()).error).toBe('VALIDATION_ERROR');
+      expect(res.status).toBe(200);
+      expect(body).toHaveLength(2);
     });
 
     it('supports date and type filters', async () => {
@@ -252,6 +261,7 @@ describe('Transaction CRUD API', () => {
               lte: expect.any(Date),
             }),
           }),
+          include: { instrument: { select: { symbol: true, name: true } } },
         }),
       );
     });

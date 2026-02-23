@@ -1,13 +1,13 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-22 (Post-Session 6)
-**Last Session:** Session 6 — Dashboard + Holdings UI
+**Last Updated:** 2026-02-23 (Post-Session 7)
+**Last Session:** Session 7 — Holding Detail + Transactions + Charts UI
 
 ---
 
 ## Current State
 
-The project has a complete backend (Sessions 1–4), full design system + component library (Session 5), and data-wired dashboard and holdings pages (Session 6). The app now displays live portfolio data with charts, PnL metrics, and a holdings table.
+The project has a complete backend (Sessions 1–4), full design system + component library (Session 5), data-wired dashboard and holdings pages (Session 6), and now holding detail, transactions, and charts pages (Session 7). Every page except the advisor chat is functional with live data.
 
 ### What Exists
 
@@ -15,11 +15,11 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined, database seeded with 28 instruments
-- Vitest 3.2.4 — **363 tests** passing across **28 test files**
-- Next.js 15.5.12 App Router with all API routes + data-wired UI pages
+- Vitest 3.2.4 — **407 tests** passing across **30 test files**
+- Next.js 15.5.12 App Router with all API routes + all core UI pages
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
-- TradingView Lightweight Charts v5 for portfolio area chart
+- TradingView Lightweight Charts v5 for portfolio area chart + candlestick charts
 - `.env.example` template with all environment variables
 - `concurrently` wired: `pnpm dev` launches both Next.js and scheduler
 - Seed script at `apps/web/prisma/seed.ts` (28 instruments, 30 transactions, 8300+ price bars)
@@ -35,9 +35,10 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 - `@stalker/scheduler` — Complete:
   - Config loader, budget check, poller, graceful shutdown
 
-**API Layer (Session 4 — all implemented):**
+**API Layer (Session 4, updated Session 7):**
 - **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete
 - **Transaction CRUD:** POST/GET/GET[id]/PUT/DELETE with sell validation via `validateTransactionSet()`
+- **GET /api/transactions:** Now supports listing all transactions (instrumentId optional), includes `symbol` and `instrumentName` per row
 - **Portfolio endpoints:** snapshot (window-based), timeseries (date range), holdings (allocation %), holdings/[symbol] (lot detail)
 - **Market endpoints:** quote (cached), history (price bars), search (stub), refresh (stub), status (health summary)
 - **Prisma interface implementations:** PrismaPriceLookup (carry-forward), PrismaSnapshotStore (Decimal serialization)
@@ -46,16 +47,28 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 **UI Foundation (Session 5 — all implemented):**
 - **Design system:** Tailwind v4 dark theme, 3 Google Fonts, CSS variables, `cn()` utility
 - **12 base components:** Button, Input, Select, Card, Badge, Table, Tooltip, Toast, Modal, PillToggle, Skeleton, ValueChange
-- **4 layout components:** Shell, NavTabs, DataHealthFooter (live), AdvisorFAB
+- **4 layout components:** Shell (now wraps ToastProvider), NavTabs, DataHealthFooter (live), AdvisorFAB
 - **4 empty states:** Dashboard, Holdings, Transactions, Advisor
 - **6 formatting utilities:** formatCurrency, formatPercent, formatQuantity, formatCompact, formatDate, formatRelativeTime (49 tests)
 
 **Dashboard + Holdings (Session 6 — all implemented):**
-- **Dashboard page (`/`):** Hero metric (total value + day change), TradingView area chart, window selector (1D-ALL), summary cards (total gain, realized/unrealized PnL), compact holdings table, Skeleton loading states
-- **Holdings page (`/holdings`):** Full sortable table (8 columns), totals row, staleness banner + per-instrument staleness indicators, empty state transition
+- **Dashboard page (`/`):** Hero metric, TradingView area chart (now uses shared useChart hook), window selector (1D-ALL), summary cards, compact holdings table with row click → holding detail, Skeleton loading states
+- **Holdings page (`/holdings`):** Full sortable table (8 columns) with row click → holding detail, totals row, staleness banner + per-instrument staleness indicators, empty state transition
 - **Data fetching hooks:** usePortfolioSnapshot, usePortfolioTimeseries, useHoldings, useMarketStatus
 - **Utility functions:** window-utils (date range mapping), chart-utils (TradingView data transform), holdings-utils (sort, allocation, totals, staleness)
-- **DataHealthFooter wired:** Live instrument count, polling interval, budget usage, freshness/staleness info
+
+**Holding Detail + Transactions + Charts (Session 7 — all implemented):**
+- **Holding detail page (`/holdings/[symbol]`):** Position summary (2x4 grid), TradingView candlestick chart with date range selector (1M/3M/6M/1Y/ALL), FIFO lots table with per-lot unrealized PnL, transaction history with edit/delete actions wired to modals, unpriced warning banner, 404 redirect to dashboard
+- **Transactions page (`/transactions`):** Full sortable table showing all transactions with symbol, type badges (BUY/SELL), formatted values. Add/edit/delete via modals with sell validation error display (inline SellValidationError on 422). Empty state with CTA.
+- **Charts page (`/charts`):** Symbol selector dropdown + full-width candlestick chart for any held instrument
+- **Add Instrument modal:** Manual entry form with symbol/name/type/exchange fields, symbol search input (stub), 409 duplicate detection. Accessible from transactions page.
+- **Shared chart hook:** `useChart` extracted from Session 6 area chart — handles createChart, ResizeObserver, dispose lifecycle. Used by both PortfolioChart (area) and CandlestickChart.
+- **Sell validation UX:** SellValidationError component shows deficit quantity, first violation date, and suggested fix. Appears inline below form on 422 — form stays open for user to adjust.
+- **Transaction form:** Create and edit modes, BUY/SELL toggle, instrument select, date/price/qty/fees inputs, client-side + server-side validation.
+- **Delete confirmation:** Danger modal with sell validation handling for dependent transactions.
+- **Cross-page navigation:** Holdings table rows → holding detail, holding detail back → holdings, holding detail edit/delete → transaction modals with refetch.
+- **Data hooks:** useHoldingDetail (with refetch), useMarketHistory, useTransactions (with refetch), useInstruments (with refetch)
+- **Utility modules:** chart-candlestick-utils (PriceBar → TradingView, 12 tests), transaction-utils (validation, formatting, sorting, 32 tests)
 
 **Reference Portfolio Fixtures** (`data/test/`):
 - `reference-portfolio.json` — 6 instruments, 25 transactions, 56 trading days of mock prices
@@ -67,11 +80,7 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 
 ### What Does Not Exist Yet
 
-- Holding detail page (Session 7)
-- Transaction add/edit forms (Session 7)
-- Add instrument modal with symbol search (Session 7)
-- Candlestick chart variant (Session 7 — holding detail)
-- LLM advisor (Session 8)
+- LLM advisor chat panel (Session 8)
 - Historical price backfill in instrument creation (stubbed — needs live API keys)
 - Manual quote refresh (stubbed — needs live API keys)
 - Symbol search proxy (stubbed — needs live API keys)
@@ -90,42 +99,52 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 
 ---
 
-## Session 6 Component Usage Guide (for Session 7+)
+## Session 7 Component Usage Guide (for Session 8+)
 
-### Dashboard Components
+### Holding Detail Components
 
 ```typescript
-import { HeroMetric } from "@/components/dashboard/HeroMetric";
-import { SummaryCards } from "@/components/dashboard/SummaryCards";
-import { PortfolioChart } from "@/components/dashboard/PortfolioChart";
-import { WindowSelector } from "@/components/dashboard/WindowSelector";
+import { PositionSummary } from "@/components/holding-detail/PositionSummary";
+import { CandlestickChart } from "@/components/holding-detail/CandlestickChart";
+import { LotsTable } from "@/components/holding-detail/LotsTable";
+import { HoldingTransactions } from "@/components/holding-detail/HoldingTransactions";
+import { UnpricedWarning } from "@/components/holding-detail/UnpricedWarning";
 ```
 
-### Holdings Components
+### Transaction Components
 
 ```typescript
-import { HoldingsTable } from "@/components/holdings/HoldingsTable";
-import { TotalsRow } from "@/components/holdings/TotalsRow";
-import { StalenessBanner } from "@/components/holdings/StalenessBanner";
-import { StalenessIndicator } from "@/components/holdings/StalenessIndicator";
+import { TransactionFormModal } from "@/components/transactions/TransactionFormModal";
+import { TransactionsTable } from "@/components/transactions/TransactionsTable";
+import { DeleteConfirmation } from "@/components/transactions/DeleteConfirmation";
+import { SellValidationError } from "@/components/transactions/SellValidationError";
 ```
 
-### Data Hooks
+### Instrument Components
 
 ```typescript
-import { usePortfolioSnapshot } from "@/lib/hooks/usePortfolioSnapshot";
-import { usePortfolioTimeseries } from "@/lib/hooks/usePortfolioTimeseries";
-import { useHoldings } from "@/lib/hooks/useHoldings";
-import { useMarketStatus } from "@/lib/hooks/useMarketStatus";
+import { AddInstrumentModal } from "@/components/instruments/AddInstrumentModal";
+import { SymbolSearchInput } from "@/components/instruments/SymbolSearchInput";
+```
+
+### New Data Hooks
+
+```typescript
+import { useHoldingDetail } from "@/lib/hooks/useHoldingDetail";
+import { useMarketHistory } from "@/lib/hooks/useMarketHistory";
+import { useTransactions } from "@/lib/hooks/useTransactions";
+import { useInstruments } from "@/lib/hooks/useInstruments";
+import { useChart } from "@/lib/hooks/useChart";
 ```
 
 ### Key Patterns
 
-- **Window state management:** Dashboard page holds `selectedWindow` state, passes it to hooks and components.
-- **HoldingsTable `compact` mode:** `<HoldingsTable holdings={data} compact />` — no sort headers, no staleness indicators.
-- **TradingView v5:** Use `chart.addSeries(AreaSeries, options)` not `chart.addAreaSeries()`.
-- **Decimal exception:** Only `chart-utils.ts` may use `Number()` on financial values (TradingView requires numbers).
-- **Staleness:** `useMarketStatus` provides `staleInstruments[]` — pass to `HoldingsTable` and `StalenessBanner`.
+- **Row click navigation:** Pass `onRowClick` to `HoldingsTable` — navigates to `/holdings/[symbol]`.
+- **Transaction CRUD refetch:** All mutation modals accept `onSuccess` callback — use for refetch.
+- **Sell validation:** 422 responses render `SellValidationError` inline — form stays open for adjustment.
+- **Shared chart hook:** `useChart({ container, options })` returns `{ chart }` — callers add their own series.
+- **Decimal exception:** `Number()` permitted only in `chart-utils.ts` and `chart-candlestick-utils.ts`.
+- **ToastProvider:** Wraps all pages via Shell component — `useToast()` available everywhere.
 
 ---
 
@@ -133,16 +152,15 @@ import { useMarketStatus } from "@/lib/hooks/useMarketStatus";
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 363 |
-| Test files | 28 |
+| Test count (total) | 407 |
+| Test files | 30 |
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (4 implemented, 1 shell) |
 | API endpoints | 16 of ~18 implemented (2 stubs: search, refresh) |
-| UI components | 24 (12 base + 4 layout + 4 empty states + 4 dashboard) |
-| Holdings components | 4 (HoldingsTable, TotalsRow, StalenessIndicator, StalenessBanner) |
-| Data hooks | 4 (snapshot, timeseries, holdings, market status) |
-| Utility modules | 3 (window-utils, chart-utils, holdings-utils) |
-| UI pages | 4 of 6 (2 data-wired, 2 stubs) |
+| UI components | 37 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 5 transactions + 2 instruments + 1 chart hook) |
+| Data hooks | 9 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart) |
+| Utility modules | 5 (window-utils, chart-utils, chart-candlestick-utils, holdings-utils, transaction-utils) |
+| UI pages | 6 of 6 (5 data-wired + 1 advisor stub) |
 | Prisma tables | 7 of 7 |
 | Market data providers | 3 of 3 |
 | Scheduler | Complete |
@@ -155,15 +173,15 @@ import { useMarketStatus } from "@/lib/hooks/useMarketStatus";
 
 ## What's Next
 
-**Session 7: Holding Detail + Transaction Forms + Charts**
+**Session 8: LLM Advisor**
 
-Scope: Individual holding detail pages, transaction add/edit forms, add instrument modal with symbol search, candlestick chart for individual instruments.
+Scope: Wire the advisor chat panel — LLM adapter, tool definitions, system prompt, slide-out panel from AdvisorFAB.
 
 Key integration points:
-- Holding detail page uses `GET /api/portfolio/holdings/[symbol]` for lot-level view
-- Transaction forms POST/PUT to `/api/transactions`
-- Add instrument modal uses `/api/market/search` (needs API keys) or manual entry
-- Candlestick chart uses `GET /api/market/history` with TradingView Lightweight Charts
+- Advisor reads cached data via tools: `getPortfolioSnapshot`, `getHolding`, `getTransactions`, `getQuotes`
+- Provider-agnostic adapter (Anthropic Claude primary, OpenAI secondary)
+- AdvisorFAB already exists — wire to slide-out chat panel
+- Thread/message persistence in AdvisorThread + AdvisorMessage tables
 
 ---
 

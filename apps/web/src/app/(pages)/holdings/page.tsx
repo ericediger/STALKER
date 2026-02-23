@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useHoldings } from "@/lib/hooks/useHoldings";
 import { useMarketStatus } from "@/lib/hooks/useMarketStatus";
 import { sortHoldings } from "@/lib/holdings-utils";
@@ -12,11 +13,16 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import type { SortColumn, SortDirection } from "@/lib/holdings-utils";
 
 export default function HoldingsPage() {
+  const router = useRouter();
   const { data: holdings, isLoading, error } = useHoldings();
   const { data: marketStatus } = useMarketStatus();
 
   const [sortColumn, setSortColumn] = useState<SortColumn>("value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const handleRowClick = useCallback((symbol: string) => {
+    router.push(`/holdings/${encodeURIComponent(symbol)}`);
+  }, [router]);
 
   const staleInstruments = marketStatus?.freshness.staleInstruments ?? [];
 
@@ -64,6 +70,7 @@ export default function HoldingsPage() {
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           staleInstruments={staleInstruments}
+          onRowClick={handleRowClick}
         />
         <TotalsRow holdings={holdings} />
       </div>

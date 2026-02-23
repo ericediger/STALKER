@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import { formatCurrency, formatPercent } from "@/lib/format";
+import { toDecimal } from "@stalker/shared";
 
 interface ValueChangeProps {
   value: string;
@@ -8,18 +9,16 @@ interface ValueChangeProps {
 }
 
 function getSign(value: string): "positive" | "negative" | "zero" {
-  if (!value || value === "" || value === "0" || value === "0.00") {
+  if (!value || value === "") {
     return "zero";
   }
-  if (value.startsWith("-")) {
-    return "negative";
-  }
-  // Check if it's actually zero (e.g., "0.000", "-0.00")
-  const numeric = parseFloat(value);
-  if (isNaN(numeric) || numeric === 0) {
+  try {
+    const d = toDecimal(value);
+    if (d.isZero()) return "zero";
+    return d.isPositive() ? "positive" : "negative";
+  } catch {
     return "zero";
   }
-  return numeric > 0 ? "positive" : "negative";
 }
 
 const signClasses: Record<ReturnType<typeof getSign>, string> = {

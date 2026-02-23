@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-22 (Post-Session 6)
+**Last Updated:** 2026-02-23 (Post-Session 7)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -400,7 +400,7 @@ Invalid inputs return `"—"` (em dash). Zero never shows as negative.
 
 | Component | Props | Notes |
 |-----------|-------|-------|
-| `HoldingsTable` | `holdings`, `compact?`, `onSort?`, `sortColumn?`, `sortDirection?`, `staleInstruments?` | `compact` mode for dashboard (no sort/staleness) |
+| `HoldingsTable` | `holdings`, `compact?`, `onSort?`, `sortColumn?`, `sortDirection?`, `staleInstruments?`, `onRowClick?` | `compact` mode for dashboard (no sort/staleness). `onRowClick` navigates to holding detail. |
 | `TotalsRow` | `holdings: Holding[]` | Footer with total value + total unrealized PnL |
 | `StalenessIndicator` | `lastUpdated: string` | Amber Badge with Tooltip showing full date |
 | `StalenessBanner` | `staleInstruments: StaleInstrument[]` | Conditional amber warning banner |
@@ -428,21 +428,100 @@ Pattern: `useState` + `useEffect` with cancellation flag. No SWR (AD-1).
 
 **API change in v5:** Use `chart.addSeries(AreaSeries, options)` — NOT `chart.addAreaSeries()` (removed in v5).
 
-Lifecycle pattern in `PortfolioChart.tsx`:
-1. `useRef<HTMLDivElement>` for container, `useRef<IChartApi>` for chart instance
-2. `useEffect` — create chart on mount with dark theme, add area series, return cleanup (`chart.remove()`)
-3. Separate `useEffect` — update series data when `timeseries` prop changes, call `fitContent()`
-4. `ResizeObserver` on container for responsive width
-5. Area series: gold gradient (`#c9a84c` → transparent), dark bg `#0a0b0d`, grid `#1e2028`
-6. Empty state: centered "No data for selected window" when no data points
+**Shared chart hook (`apps/web/src/lib/hooks/useChart.ts`):**
+```typescript
+import { useChart } from "@/lib/hooks/useChart";
+const { chart } = useChart({ container: containerRef, options: { height: 300 } });
+// Then add series: chart.addSeries(AreaSeries, opts) or chart.addSeries(CandlestickSeries, opts)
+```
+Handles: createChart → ResizeObserver → dispose. Dark theme defaults built in.
+
+Both `PortfolioChart` (area) and `CandlestickChart` (candlestick) use this hook.
 
 ### Decimal Exception for Charts (AD-4 Note)
 
-TradingView Lightweight Charts requires `number` values for chart data points. The `chart-utils.ts` file is the **only** approved location for `Number()` / `parseFloat()` on financial values. This is documented inline with a comment. All other UI code must use `formatCurrency()`, `formatPercent()`, etc.
+TradingView Lightweight Charts requires `number` values for chart data points. `chart-utils.ts` and `chart-candlestick-utils.ts` are the **only** approved locations for `Number()` on financial values. All other UI code must use `formatCurrency()`, `formatPercent()`, etc.
 
 ### Seed Data
 
 `apps/web/prisma/seed.ts` creates 28 instruments with ~300 trading days of price bars each (8300+ bars total), 30 transactions, and 28 latest quotes (3 intentionally stale for testing staleness indicators).
+
+---
+
+## Session 7 — Holding Detail + Transactions + Charts
+
+### Holding Detail Components (`apps/web/src/components/holding-detail/`)
+
+| Component | Props | Notes |
+|-----------|-------|-------|
+| `PositionSummary` | `detail: HoldingDetail` | 2x4 grid: shares, avg cost, market value, PnL, cost basis, realized PnL, mark price, quote time |
+| `CandlestickChart` | `symbol: string` | TradingView candlestick with date range PillToggle (1M/3M/6M/1Y/ALL) |
+| `LotsTable` | `lots: HoldingLot[]`, `markPrice: string \| null` | FIFO lots with per-lot unrealized PnL, totals row |
+| `HoldingTransactions` | `transactions`, `onEdit?`, `onDelete?` | Sorted table, Badge for BUY/SELL, edit/delete icons wired to callbacks |
+| `UnpricedWarning` | `symbol: string` | Amber banner when no price data |
+
+### Transaction Components (`apps/web/src/components/transactions/`)
+
+| Component | Props | Notes |
+|-----------|-------|-------|
+| `SellValidationError` | `error: SellValidationErrorData \| null` | Inline error: deficit qty, violation date, suggested fix. Uses `firstViolationDate` field. |
+| `TransactionForm` | `mode`, `transaction?`, `instruments`, `onSuccess`, `onError` | BUY/SELL toggle, instrument select, date/qty/price/fees inputs |
+| `TransactionFormModal` | `open`, `onClose`, `mode`, `transaction?`, `instruments`, `onSuccess` | Modal wrapper with toast feedback |
+| `TransactionsTable` | `transactions`, `onEdit`, `onDelete` | Sortable columns, type badges, formatted values, actions |
+| `DeleteConfirmation` | `open`, `onClose`, `transaction`, `onSuccess` | Danger modal with 422 sell validation handling |
+
+### Instrument Components (`apps/web/src/components/instruments/`)
+
+| Component | Props | Notes |
+|-----------|-------|-------|
+| `AddInstrumentModal` | `open`, `onClose`, `onSuccess` | Manual entry form (symbol search is stubbed). 409 duplicate detection. |
+| `SymbolSearchInput` | `value`, `onChange` | Text input with search stub message |
+
+### Session 7 Data Hooks (`apps/web/src/lib/hooks/`)
+
+| Hook | Params | Returns |
+|------|--------|---------|
+| `useChart` | `{ container, options? }` | `{ chart: IChartApi \| null }` |
+| `useHoldingDetail` | `symbol: string` | `{ data, isLoading, error, refetch }` |
+| `useMarketHistory` | `symbol, startDate, endDate` | `{ data: PriceBar[], isLoading, error }` |
+| `useTransactions` | `instrumentId?` | `{ data, isLoading, error, refetch }` |
+| `useInstruments` | none | `{ data, isLoading, error, refetch }` |
+
+### Session 7 Utility Functions
+
+| File | Functions | Notes |
+|------|-----------|-------|
+| `chart-candlestick-utils.ts` | `toCandlestickData(bars)` | PriceBar → TradingView CandlestickData. `Number()` exception (AD-S6c). 12 tests. |
+| `transaction-utils.ts` | `validateTransactionForm()`, `formatTransactionForApi()`, `sortTransactions()` | Client-side validation, API formatting, multi-column sort. 32 tests. |
+
+### Sell Validation Error Shape (Verified)
+
+```json
+{
+  "error": "SELL_VALIDATION_FAILED",
+  "message": "Transaction would create negative position",
+  "details": {
+    "instrumentSymbol": "AAPL",
+    "firstViolationDate": "2026-01-01T00:00:00.000Z",
+    "deficitQuantity": "99929"
+  }
+}
+```
+Note: The field is `firstViolationDate` (not `firstNegativeDate` as in the master plan).
+
+### Cross-Page Navigation
+
+| From | To | Method |
+|------|----|--------|
+| Dashboard holdings table row | `/holdings/[symbol]` | `onRowClick` → `router.push()` |
+| Holdings page table row | `/holdings/[symbol]` | `onRowClick` → `router.push()` |
+| Holding detail back arrow | `/holdings` | `<Link>` |
+| Holding detail edit icon | TransactionFormModal (edit) | `onEdit` callback |
+| Holding detail delete icon | DeleteConfirmation modal | `onDelete` callback |
+
+### ToastProvider
+
+`ToastProvider` wraps all pages via `Shell` component. `useToast()` is available in any component rendered within the pages layout.
 
 ---
 

@@ -139,15 +139,15 @@ export async function GET(request: NextRequest): Promise<Response> {
     const endDate = searchParams.get('endDate');
     const type = searchParams.get('type');
 
-    if (!instrumentId) {
-      return apiError(400, 'VALIDATION_ERROR', 'instrumentId query parameter is required');
-    }
-
     const where: {
-      instrumentId: string;
+      instrumentId?: string;
       tradeAt?: { gte?: Date; lte?: Date };
       type?: string;
-    } = { instrumentId };
+    } = {};
+
+    if (instrumentId) {
+      where.instrumentId = instrumentId;
+    }
 
     if (startDate || endDate) {
       where.tradeAt = {};
@@ -166,9 +166,14 @@ export async function GET(request: NextRequest): Promise<Response> {
     const transactions = await prisma.transaction.findMany({
       where,
       orderBy: { tradeAt: 'asc' },
+      include: { instrument: { select: { symbol: true, name: true } } },
     });
 
-    return Response.json(transactions.map(serializeTransaction));
+    return Response.json(transactions.map((tx) => ({
+      ...serializeTransaction(tx),
+      symbol: tx.instrument.symbol,
+      instrumentName: tx.instrument.name,
+    })));
   } catch (err: unknown) {
     console.error('GET /api/transactions error:', err);
     return apiError(500, 'INTERNAL_ERROR', 'Failed to fetch transactions');

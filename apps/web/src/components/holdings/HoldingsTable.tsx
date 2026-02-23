@@ -15,6 +15,7 @@ interface HoldingsTableProps {
   sortColumn?: SortColumn;
   sortDirection?: SortDirection;
   staleInstruments?: StaleInstrument[];
+  onRowClick?: (symbol: string) => void;
 }
 
 interface ColumnDef {
@@ -55,6 +56,7 @@ export function HoldingsTable({
   sortColumn,
   sortDirection,
   staleInstruments = [],
+  onRowClick,
 }: HoldingsTableProps) {
   const handleHeaderClick = (col: ColumnDef) => {
     if (!col.sortable || compact || !onSort) return;
@@ -99,6 +101,7 @@ export function HoldingsTable({
               holding={holding}
               staleInstruments={staleInstruments}
               compact={compact}
+              onRowClick={onRowClick}
             />
           ))}
         </tbody>
@@ -107,10 +110,11 @@ export function HoldingsTable({
   );
 }
 
-function HoldingsTableRow({ holding, staleInstruments, compact }: {
+function HoldingsTableRow({ holding, staleInstruments, compact, onRowClick }: {
   holding: Holding;
   staleInstruments: StaleInstrument[];
   compact: boolean;
+  onRowClick?: (symbol: string) => void;
 }) {
   const stale = !compact && isSymbolStale(holding.symbol, staleInstruments);
   const staleEntry = stale
@@ -118,7 +122,13 @@ function HoldingsTableRow({ holding, staleInstruments, compact }: {
     : undefined;
 
   return (
-    <tr className="border-b border-border-primary last:border-b-0 hover:bg-bg-tertiary transition-colors">
+    <tr
+      className={cn(
+        "border-b border-border-primary last:border-b-0 hover:bg-bg-tertiary transition-colors",
+        onRowClick && "cursor-pointer",
+      )}
+      onClick={onRowClick ? () => onRowClick(holding.symbol) : undefined}
+    >
       <td className="px-3 py-2 text-text-primary font-medium">
         {holding.symbol}
       </td>

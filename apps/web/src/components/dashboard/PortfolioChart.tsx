@@ -2,14 +2,12 @@
 
 import { useRef, useEffect } from "react";
 import {
-  createChart,
   AreaSeries,
-  type IChartApi,
   type ISeriesApi,
   type SeriesType,
-  CrosshairMode,
 } from "lightweight-charts";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useChart } from "@/lib/hooks/useChart";
 import { toAreaChartData, type TimeseriesPoint } from "@/lib/chart-utils";
 
 interface PortfolioChartProps {
@@ -21,58 +19,32 @@ const CHART_HEIGHT = 300;
 
 export function PortfolioChart({ timeseries, isLoading }: PortfolioChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
 
-  // Create chart on mount, dispose on unmount
+  const { chart } = useChart({
+    container: containerRef,
+    options: { height: CHART_HEIGHT },
+  });
+
+  // Add area series once chart is ready
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!chart) return;
 
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height: CHART_HEIGHT,
-      layout: {
-        background: { color: "#0a0b0d" },
-        textColor: "#8b8d93",
-        fontFamily: "'JetBrains Mono', monospace",
-      },
-      grid: {
-        vertLines: { color: "#1e2028" },
-        horzLines: { color: "#1e2028" },
-      },
-      crosshair: { mode: CrosshairMode.Normal },
-      timeScale: { borderColor: "#1e2028" },
-      rightPriceScale: { borderColor: "#1e2028" },
-    });
-
-    const series = chart.addSeries(AreaSeries, {
-      lineColor: "#c9a84c",
-      topColor: "rgba(201, 168, 76, 0.4)",
-      bottomColor: "rgba(201, 168, 76, 0.0)",
-      lineWidth: 2,
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = series;
-
-    // Responsive resize
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        if (width > 0) {
-          chart.applyOptions({ width });
-        }
-      }
-    });
-    observer.observe(containerRef.current);
+    // Only add the series if we haven't already
+    if (!seriesRef.current) {
+      const series = chart.addSeries(AreaSeries, {
+        lineColor: "#c9a84c",
+        topColor: "rgba(201, 168, 76, 0.4)",
+        bottomColor: "rgba(201, 168, 76, 0.0)",
+        lineWidth: 2,
+      });
+      seriesRef.current = series;
+    }
 
     return () => {
-      observer.disconnect();
-      chart.remove();
-      chartRef.current = null;
       seriesRef.current = null;
     };
-  }, []);
+  }, [chart]);
 
   // Update data when timeseries changes
   useEffect(() => {
@@ -80,10 +52,10 @@ export function PortfolioChart({ timeseries, isLoading }: PortfolioChartProps) {
     const chartData = toAreaChartData(timeseries);
     seriesRef.current.setData(chartData);
 
-    if (chartRef.current && chartData.length > 0) {
-      chartRef.current.timeScale().fitContent();
+    if (chart && chartData.length > 0) {
+      chart.timeScale().fitContent();
     }
-  }, [timeseries]);
+  }, [timeseries, chart]);
 
   if (isLoading) {
     return <Skeleton height={`${CHART_HEIGHT}px`} className="w-full rounded-lg" />;
