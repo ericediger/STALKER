@@ -5,6 +5,7 @@ import { transactionInputSchema } from '@/lib/validators/transactionInput';
 import { generateUlid, toDecimal } from '@stalker/shared';
 import type { Transaction as AnalyticsTransaction } from '@stalker/shared';
 import { validateTransactionSet } from '@stalker/analytics';
+import { triggerSnapshotRebuild } from '@/lib/snapshot-rebuild-helper';
 
 function prismaToAnalyticsTransaction(
   tx: { id: string; instrumentId: string; type: string; quantity: { toString(): string }; price: { toString(): string }; fees: { toString(): string }; tradeAt: Date; notes: string | null; createdAt: Date; updatedAt: Date },
@@ -122,7 +123,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     });
 
-    // Snapshot rebuild skipped for now — stubbed until Teammate 2's Prisma implementations are wired
+    // Rebuild snapshots from the new transaction's trade date forward
+    await triggerSnapshotRebuild(new Date(tradeAt));
 
     return Response.json(serializeTransaction(created), { status: 201 });
   } catch (err: unknown) {

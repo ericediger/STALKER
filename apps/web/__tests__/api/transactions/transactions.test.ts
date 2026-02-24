@@ -23,6 +23,10 @@ vi.mock('@/lib/prisma', () => ({
   prisma: mockPrismaClient,
 }));
 
+vi.mock('@/lib/snapshot-rebuild-helper', () => ({
+  triggerSnapshotRebuild: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { POST, GET } from '@/app/api/transactions/route';
 import { GET as GET_BY_ID, PUT, DELETE } from '@/app/api/transactions/[id]/route';
 

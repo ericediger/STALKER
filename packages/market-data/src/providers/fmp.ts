@@ -1,6 +1,7 @@
 import { toDecimal } from '@stalker/shared';
 import type { MarketDataProvider, Quote, SymbolSearchResult, ProviderLimits, PriceBar, Resolution } from '../types.js';
 import { ProviderError } from '../types.js';
+import { fetchWithTimeout } from '../fetch-with-timeout.js';
 
 const FMP_BASE_URL = 'https://financialmodelingprep.com';
 
@@ -157,7 +158,7 @@ export class FmpProvider implements MarketDataProvider {
   private async fetchWithErrorHandling(url: string): Promise<Response> {
     let response: Response;
     try {
-      response = await fetch(url);
+      response = await fetchWithTimeout(url);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown network error';
       throw new ProviderError(`Network error: ${message}`, 'NETWORK_ERROR', this.name);

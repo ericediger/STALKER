@@ -10,6 +10,7 @@ const { mockPrismaClient } = vi.hoisted(() => {
       delete: vi.fn(),
     },
     transaction: {
+      findFirst: vi.fn(),
       deleteMany: vi.fn(),
     },
     priceBar: {
@@ -25,6 +26,10 @@ const { mockPrismaClient } = vi.hoisted(() => {
 
 vi.mock('@/lib/prisma', () => ({
   prisma: mockPrismaClient,
+}));
+
+vi.mock('@/lib/snapshot-rebuild-helper', () => ({
+  triggerSnapshotRebuild: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { POST, GET } from '@/app/api/instruments/route';
@@ -199,6 +204,7 @@ describe('Instrument CRUD API', () => {
   describe('DELETE /api/instruments/[id]', () => {
     it('cascade deletes instrument and related data', async () => {
       mockPrismaClient.instrument.findUnique.mockResolvedValue(mockInstrument({ id: 'del-id' }));
+      mockPrismaClient.transaction.findFirst.mockResolvedValue(null);
       mockPrismaClient.$transaction.mockResolvedValue([]);
 
       const req = makeRequest('/api/instruments/del-id');

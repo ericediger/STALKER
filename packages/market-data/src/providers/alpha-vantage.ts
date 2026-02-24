@@ -1,6 +1,7 @@
 import { toDecimal } from '@stalker/shared';
 import type { MarketDataProvider, Quote, SymbolSearchResult, ProviderLimits, PriceBar, Resolution } from '../types.js';
 import { ProviderError } from '../types.js';
+import { fetchWithTimeout } from '../fetch-with-timeout.js';
 
 const AV_BASE_URL = 'https://www.alphavantage.co';
 
@@ -196,7 +197,7 @@ export class AlphaVantageProvider implements MarketDataProvider {
   private async fetchJson(url: string): Promise<unknown> {
     let response: Response;
     try {
-      response = await fetch(url);
+      response = await fetchWithTimeout(url);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown network error';
       throw new ProviderError(

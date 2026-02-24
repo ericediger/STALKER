@@ -13,7 +13,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     // Stub: return empty results until API keys are configured
-    return Response.json([]);
+    return Response.json({ results: [] });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return apiError(500, 'INTERNAL_ERROR', message);

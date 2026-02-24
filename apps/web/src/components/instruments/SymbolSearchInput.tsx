@@ -44,14 +44,15 @@ export function SymbolSearchInput({
           return;
         }
         const data = (await res.json()) as {
-          results: Array<{ symbol: string; name: string; exchange: string }>;
+          results?: Array<{ symbol: string; name: string; exchange: string }>;
         };
-        if (data.results.length === 0) {
+        const results = Array.isArray(data?.results) ? data.results : [];
+        if (results.length === 0) {
           setSearchUnavailable(true);
         } else {
           setSearchUnavailable(false);
         }
-        setSearchResults(data.results);
+        setSearchResults(results);
       } catch {
         setSearchUnavailable(true);
         setSearchResults([]);

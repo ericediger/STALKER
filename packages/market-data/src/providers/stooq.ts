@@ -1,6 +1,7 @@
 import { toDecimal } from '@stalker/shared';
 import type { MarketDataProvider, Quote, SymbolSearchResult, ProviderLimits, PriceBar, Resolution } from '../types.js';
 import { ProviderError, NotSupportedError } from '../types.js';
+import { fetchWithTimeout } from '../fetch-with-timeout.js';
 
 const STOOQ_BASE_URL = 'https://stooq.com';
 
@@ -27,7 +28,7 @@ export class StooqProvider implements MarketDataProvider {
 
     let response: Response;
     try {
-      response = await fetch(url);
+      response = await fetchWithTimeout(url);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown network error';
       throw new ProviderError(`Network error: ${message}`, 'NETWORK_ERROR', this.name);

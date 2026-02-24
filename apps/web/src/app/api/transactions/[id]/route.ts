@@ -5,6 +5,7 @@ import { transactionInputSchema } from '@/lib/validators/transactionInput';
 import { toDecimal } from '@stalker/shared';
 import type { Transaction as AnalyticsTransaction } from '@stalker/shared';
 import { validateTransactionSet } from '@stalker/analytics';
+import { triggerSnapshotRebuild } from '@/lib/snapshot-rebuild-helper';
 
 function prismaToAnalyticsTransaction(
   tx: { id: string; instrumentId: string; type: string; quantity: { toString(): string }; price: { toString(): string }; fees: { toString(): string }; tradeAt: Date; notes: string | null; createdAt: Date; updatedAt: Date },
@@ -178,7 +179,11 @@ export async function PUT(
       },
     });
 
-    // Snapshot rebuild skipped for now
+    // Rebuild from the earlier of old and new trade dates
+    const oldTradeAt = existing.tradeAt;
+    const newTradeAt = new Date(tradeAt);
+    const earlierDate = oldTradeAt < newTradeAt ? oldTradeAt : newTradeAt;
+    await triggerSnapshotRebuild(earlierDate);
 
     return Response.json(serializeTransaction(updated));
   } catch (err: unknown) {
@@ -225,7 +230,8 @@ export async function DELETE(
     // Delete transaction
     await prisma.transaction.delete({ where: { id } });
 
-    // Snapshot rebuild skipped for now
+    // Rebuild snapshots from the deleted transaction's trade date
+    await triggerSnapshotRebuild(existing.tradeAt);
 
     return Response.json({ deleted: true, id });
   } catch (err: unknown) {

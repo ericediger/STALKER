@@ -1,24 +1,24 @@
 import type { Metadata } from 'next';
-import { Crimson_Pro, DM_Sans, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 
-const crimsonPro = Crimson_Pro({
-  subsets: ['latin'],
-  weight: ['400', '600', '700'],
+const crimsonPro = localFont({
+  src: '../fonts/CrimsonPro-latin.woff2',
+  weight: '400 600',
   variable: '--font-heading-ref',
   display: 'swap',
 });
 
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const dmSans = localFont({
+  src: '../fonts/DMSans-latin.woff2',
+  weight: '400 600',
   variable: '--font-body-ref',
   display: 'swap',
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+const jetbrainsMono = localFont({
+  src: '../fonts/JetBrainsMono-latin.woff2',
+  weight: '400 500',
   variable: '--font-mono-ref',
   display: 'swap',
 });

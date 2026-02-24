@@ -21,6 +21,9 @@ export type {
   PrismaLatestQuoteDelegate,
 } from './cache.js';
 
+// Fetch Utility
+export { fetchWithTimeout } from './fetch-with-timeout.js';
+
 // Symbol Mapping
 export { getProviderSymbol } from './symbol-map.js';
 
