@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { TransactionsTable } from "@/components/transactions/TransactionsTable";
 import { TransactionFormModal } from "@/components/transactions/TransactionFormModal";
 import { DeleteConfirmation } from "@/components/transactions/DeleteConfirmation";
+import { BulkPastePanel } from "@/components/transactions/BulkPastePanel";
 import { AddInstrumentModal } from "@/components/instruments/AddInstrumentModal";
 import { useTransactions } from "@/lib/hooks/useTransactions";
 import { useInstruments } from "@/lib/hooks/useInstruments";
@@ -36,6 +37,10 @@ export default function TransactionsPage() {
     refetchInstruments();
   }, [refetchInstruments]);
 
+  const handleBulkImportSuccess = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
   const hasTransactions = transactions && transactions.length > 0;
   const hasInstruments = instruments && instruments.length > 0;
 
@@ -58,6 +63,11 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      {/* Bulk Import Panel */}
+      {hasInstruments && (
+        <BulkPastePanel onImportSuccess={handleBulkImportSuccess} />
+      )}
 
       {/* Content */}
       {isLoading ? (
