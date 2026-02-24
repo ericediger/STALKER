@@ -111,7 +111,7 @@ function ToastContainer({ entries, onDismiss }: {
   if (entries.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2">
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2" role="status" aria-live="polite">
       {entries.map((entry) => (
         <ToastItem key={entry.id} entry={entry} onDismiss={onDismiss} />
       ))}

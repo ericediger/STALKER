@@ -63,12 +63,13 @@ export function AdvisorMessages({ messages, isLoading }: AdvisorMessagesProps) {
       {isLoading && (
         <div className="max-w-[90%]">
           <div className="rounded-lg p-3 bg-bg-tertiary border border-border-primary">
-            <div className="flex items-center gap-2 text-text-tertiary text-sm">
+            <div className="flex items-center gap-2 text-text-tertiary text-sm" role="status" aria-label="Loading">
               <svg
                 className="w-4 h-4 animate-spin"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <circle
                   className="opacity-25"

@@ -1,13 +1,13 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-23 (Post-Session 8)
-**Last Session:** Session 8 — Code Review Hardening + LLM Advisor
+**Last Updated:** 2026-02-24 (Post-Session 9)
+**Last Session:** Session 9 — Full-Stack Validation + Polish + MVP Signoff
 
 ---
 
 ## Current State
 
-The project has a complete backend (Sessions 1–4), full design system + component library (Session 5), data-wired dashboard and holdings pages (Session 6), holding detail, transactions, and charts pages (Session 7), and now the LLM advisor (Session 8). All pages are functional with live data. The advisor chat panel is wired end-to-end: FAB → slide-out panel → API route → LLM tool loop → response rendering.
+The project is at MVP completion. It has a complete backend (Sessions 1–4), full design system + component library (Session 5), data-wired dashboard and holdings pages (Session 6), holding detail, transactions, and charts pages (Session 7), the LLM advisor (Session 8), and full-stack validation with polish (Session 9). All pages are functional with live data. The advisor chat panel is wired end-to-end: FAB → slide-out panel → API route → LLM tool loop → response rendering.
 
 ### What Exists
 
@@ -15,7 +15,7 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined, database seeded with 28 instruments
-- Vitest 3.2.4 — **469 tests** passing across **39 test files**
+- Vitest 3.2.4 — **469+ tests** passing across **39+ test files**
 - Next.js 15.5.12 App Router with all API routes + all UI pages (including advisor)
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
@@ -45,7 +45,7 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 - **Shared utilities:** errors.ts (apiError factory), Zod validators, prisma singleton
 
 **UI Foundation (Session 5 — all implemented):**
-- **Design system:** Tailwind v4 dark theme, 3 Google Fonts, CSS variables, `cn()` utility
+- **Design system:** Tailwind v4 dark theme, 3 bundled fonts (next/font/local), CSS variables, `cn()` utility
 - **12 base components:** Button, Input, Select, Card, Badge, Table, Tooltip, Toast, Modal, PillToggle, Skeleton, ValueChange
 - **4 layout components:** Shell (now wraps ToastProvider), NavTabs, DataHealthFooter (live), AdvisorFAB
 - **4 empty states:** Dashboard, Holdings, Transactions, Advisor
@@ -89,12 +89,20 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 - H-4: All provider fetch calls use fetchWithTimeout (10s default)
 - H-5: Fonts bundled locally via next/font/local (no Google Fonts CDN dependency)
 
+**Session 9 Polish (Phase 2):**
+- Focus trap hook (`useFocusTrap`) for modal/panel keyboard trapping
+- Focus trap wired into AdvisorPanel with `aria-modal="true"`
+- ARIA fixes: Toast container (`role="status"`, `aria-live="polite"`), DeleteConfirmation (`aria-describedby`), UnpricedWarning (`role="alert"`), loading spinner (`role="status"`, `aria-label="Loading"`)
+- Tool loop empty string fallback fix (empty LLM response → helpful fallback message)
+- Known limitations documented in `KNOWN-LIMITATIONS.md`
+
 ### What Does Not Exist Yet
 
 - Historical price backfill in instrument creation (stubbed — needs live API keys)
 - Manual quote refresh (stubbed — needs live API keys)
 - Symbol search proxy (stubbed — needs live API keys)
 - CI pipeline
+- Bulk transaction paste input (deferred to post-MVP)
 
 ### Known Stubs (Ready to Wire)
 
@@ -103,6 +111,17 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 | Historical backfill on instrument create | `apps/web/src/app/api/instruments/route.ts` | Call market data service `getHistory()`, write PriceBars, set firstBarDate |
 | Symbol search | `apps/web/src/app/api/market/search/route.ts` | Wire to MarketDataService.searchSymbols() |
 | Manual quote refresh | `apps/web/src/app/api/market/refresh/route.ts` | Wire to MarketDataService.getQuote() per instrument |
+
+### Known Limitations
+
+See `KNOWN-LIMITATIONS.md` for the full list of documented MVP gaps including:
+- W-3: Snapshot rebuild outside Prisma transaction
+- W-4: GET snapshot side-effecting on cold start
+- W-5: Anthropic tool_result message translation
+- W-8: Decimal formatting truncation in advisor tool executors
+- No holiday/half-day market calendar
+- No `prefers-reduced-motion` support
+- No advisor context window management or summary generation
 
 ---
 
@@ -142,6 +161,7 @@ import { useMarketHistory } from "@/lib/hooks/useMarketHistory";
 import { useTransactions } from "@/lib/hooks/useTransactions";
 import { useInstruments } from "@/lib/hooks/useInstruments";
 import { useChart } from "@/lib/hooks/useChart";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 ```
 
 ### Key Patterns
@@ -152,6 +172,7 @@ import { useChart } from "@/lib/hooks/useChart";
 - **Shared chart hook:** `useChart({ container, options })` returns `{ chart }` — callers add their own series.
 - **Decimal exception:** `Number()` permitted only in `chart-utils.ts` and `chart-candlestick-utils.ts`.
 - **ToastProvider:** Wraps all pages via Shell component — `useToast()` available everywhere.
+- **Focus trap:** `useFocusTrap(containerRef, isActive, returnFocusRef?)` — traps Tab/Shift+Tab within container, returns focus on deactivate.
 
 ---
 
@@ -159,13 +180,13 @@ import { useChart } from "@/lib/hooks/useChart";
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 469 |
-| Test files | 39 |
+| Test count (total) | 469+ |
+| Test files | 39+ |
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (all implemented) |
 | API endpoints | 19 of ~21 implemented (2 stubs: search, refresh) |
-| UI components | 44 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 5 transactions + 2 instruments + 1 chart hook + 7 advisor) |
-| Data hooks | 10 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart, advisor) |
+| UI components | 45 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 5 transactions + 2 instruments + 1 chart hook + 7 advisor + 1 focus trap hook) |
+| Data hooks | 11 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart, advisor, focus trap) |
 | Utility modules | 6 (window-utils, chart-utils, chart-candlestick-utils, holdings-utils, transaction-utils, fetch-with-timeout) |
 | UI pages | 6 of 6 (all data-wired including advisor) |
 | Prisma tables | 7 of 7 |
@@ -179,18 +200,16 @@ import { useChart } from "@/lib/hooks/useChart";
 
 ---
 
-## What's Next
+## Post-MVP Priorities
 
-**Session 9: Full-Stack Validation + Polish + MVP Signoff**
-
-Scope: End-to-end testing with live data, polish remaining rough edges, MVP signoff.
-
-Key areas:
-- Full-stack smoke test: seed data → dashboard → holdings → advisor chat → thread persistence
-- Live API key integration test (if keys available): scheduler polls → quote updates → advisor sees fresh data
-- Any remaining accessibility polish (focus trap in advisor panel, keyboard navigation)
-- CI pipeline setup (if time allows)
-- Final documentation sweep
+1. **Bulk transaction paste input** — `POST /api/transactions/bulk` with tab-delimited paste and preview table
+2. **Live API key wiring** — Symbol search, manual quote refresh, historical price backfill
+3. **CI pipeline** — GitHub Actions with test, build, type-check gates
+4. **Holiday/half-day market calendar** — Reduce wasted API calls on market holidays
+5. **Advisor context window management** — Token counting, summary generation for long threads
+6. **`prefers-reduced-motion` support** — Respect user animation preferences
+7. **Responsive refinements** — Tablet/mobile layout adjustments
+8. **Performance profiling** — Identify and optimize slow paths
 
 ---
 

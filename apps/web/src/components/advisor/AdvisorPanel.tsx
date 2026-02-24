@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/cn";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 import { AdvisorHeader } from "./AdvisorHeader";
 import { AdvisorMessages } from "./AdvisorMessages";
 import { AdvisorInput } from "./AdvisorInput";
@@ -15,7 +16,9 @@ interface AdvisorPanelProps {
 }
 
 export function AdvisorPanel({ open, onClose }: AdvisorPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const [showingThreads, setShowingThreads] = useState(false);
+  useFocusTrap(panelRef, open);
   const {
     threads,
     activeThreadId,
@@ -77,6 +80,7 @@ export function AdvisorPanel({ open, onClose }: AdvisorPanelProps) {
 
       {/* Panel */}
       <div
+        ref={panelRef}
         className={cn(
           "fixed top-0 right-0 h-full w-full max-w-md z-50",
           "bg-bg-secondary shadow-2xl",
@@ -86,6 +90,7 @@ export function AdvisorPanel({ open, onClose }: AdvisorPanelProps) {
         )}
         role="dialog"
         aria-label="Portfolio Advisor"
+        aria-modal="true"
         aria-hidden={!open}
       >
         <AdvisorHeader

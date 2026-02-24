@@ -78,7 +78,7 @@ export function DeleteConfirmation({
   return (
     <Modal open={open} onClose={handleClose} title="Delete Transaction">
       <div className="space-y-4">
-        <p className="text-text-secondary">
+        <p id="delete-confirm-desc" className="text-text-secondary">
           Delete this{" "}
           <span className="font-medium text-text-primary">
             {transaction.type}
