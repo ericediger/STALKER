@@ -9,6 +9,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.78.0",
     "@stalker/shared": "workspace:*"
   },
   "devDependencies": {

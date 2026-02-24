@@ -1,8 +1,30 @@
-// Placeholder — List advisor threads (GET)
-// Implementation: Session 8
+import { prisma } from '@/lib/prisma';
+import { apiError } from '@/lib/errors';
 
-import { NextResponse } from 'next/server';
+/**
+ * GET /api/advisor/threads
+ * Returns all threads sorted by updatedAt desc, with message count.
+ */
+export async function GET(): Promise<Response> {
+  try {
+    const threads = await prisma.advisorThread.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: { select: { messages: true } },
+      },
+    });
 
-export async function GET() {
-  return NextResponse.json({ error: 'NOT_IMPLEMENTED', message: 'Advisor threads — Session 8' }, { status: 501 });
+    return Response.json({
+      threads: threads.map((t) => ({
+        id: t.id,
+        title: t.title,
+        messageCount: t._count.messages,
+        createdAt: t.createdAt.toISOString(),
+        updatedAt: t.updatedAt.toISOString(),
+      })),
+    });
+  } catch (err: unknown) {
+    console.error('GET /api/advisor/threads error:', err);
+    return apiError(500, 'INTERNAL_ERROR', 'Failed to list advisor threads');
+  }
 }
