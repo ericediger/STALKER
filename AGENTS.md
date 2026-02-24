@@ -1,7 +1,7 @@
 # AGENTS.md — STALKER Tech Stack & Design Decisions
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-24 (Post-Session 10 — Hardening + Bulk Paste + CI)
+**Last Updated:** 2026-02-24 (Post-Session 11 — Provider Integration Testing)
 
 ---
 
@@ -21,7 +21,7 @@
 | **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Local woff2 via next/font/local (Session 8 H-5) |
 | **Charting** | TradingView Lightweight Charts 5.1.0 | MIT license, v5 API: `chart.addSeries(AreaSeries, opts)` |
 | **Monorepo** | pnpm 10.30.1 workspaces | Native, fast, no Turborepo/Nx needed |
-| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 506+ tests passing |
+| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 526+ tests passing |
 | **Validation** | Zod 4.3.6 | Input validation for API routes |
 | **IDs** | ULID 2.x | Sortable, no coordination, SQLite-friendly |
 | **Process manager** | concurrently 9.x | Runs Next.js + scheduler together via `pnpm dev` |
@@ -37,7 +37,7 @@ pnpm exclusively. No npm, no yarn. Install with `pnpm install`. Run scripts with
 |---------|------|---------|------------|
 | `@stalker/shared` | `packages/shared/` | Types, Decimal utils, ULID, constants | Nothing |
 | `@stalker/analytics` | `packages/analytics/` | FIFO lots, PnL, portfolio value series | `@stalker/shared` |
-| `@stalker/market-data` | `packages/market-data/` | Provider interface, implementations, calendar, rate limiter | `@stalker/shared` |
+| `@stalker/market-data` | `packages/market-data/` | Provider interface, implementations (FMP, Tiingo, AV), calendar, rate limiter | `@stalker/shared` |
 | `@stalker/advisor` | `packages/advisor/` | LLM adapter, tool definitions, system prompt | `@stalker/shared` |
 | `@stalker/scheduler` | `packages/scheduler/` | Polling orchestration | `@stalker/market-data` |
 | `web` | `apps/web/` | Next.js application (UI + API routes) | All packages |
@@ -62,7 +62,7 @@ All decisions are **final unless explicitly revisited** in a planning session. R
 
 | Decision | Detail | Why |
 |----------|--------|-----|
-| Three providers | FMP (primary quotes + search), Stooq (historical daily bars), Alpha Vantage (backup) | Diversification across free tiers. Each provider has a strength. |
+| Three providers | FMP (search + quotes via `/stable/`), Tiingo (historical daily bars), Alpha Vantage (backup quotes) | FMP `/api/v3/` dead since Aug 2025. Stooq deprecated (no formal API). Tiingo: REST API, 30+ years of data, documented limits. |
 | Flat polling | All instruments polled at equal interval. No priority tiers. | Single user, not day-trading. Tiered polling adds ~150 LOC for no user-facing benefit. |
 | Weekday-only calendar | `isTradingDay()` = Monday–Friday check. No holiday awareness. | Polling on a holiday wastes a few API calls. Staleness indicator already communicates the gap. No incorrect data produced. |
 | Configurable rate limits | Provider limits read from env vars, not hardcoded. | When providers change free tiers, update `.env.local` — no code changes. |
@@ -130,15 +130,17 @@ All configuration via `apps/web/.env.local`:
 
 ```env
 # Market Data Providers
-FMP_API_KEY=                     # Financial Modeling Prep
-ALPHA_VANTAGE_API_KEY=           # Alpha Vantage
-# Stooq needs no key
+FMP_API_KEY=                     # Financial Modeling Prep (search + quotes)
+ALPHA_VANTAGE_API_KEY=           # Alpha Vantage (backup quotes)
+TIINGO_API_KEY=                  # Tiingo (historical daily bars)
 
 # Provider Rate Limits (configurable)
 FMP_RPM=5                        # Requests per minute
 FMP_RPD=250                      # Requests per day
 AV_RPM=5
 AV_RPD=25
+TIINGO_RPH=50                    # Requests per hour
+TIINGO_RPD=1000                  # Requests per day
 
 # LLM Provider
 LLM_PROVIDER=anthropic           # or "openai"

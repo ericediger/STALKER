@@ -1,13 +1,13 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-24 (Post-Session 10)
-**Last Session:** Session 10 — Hardening + Bulk Paste + CI
+**Last Updated:** 2026-02-24 (Post-Session 11)
+**Last Session:** Session 11 — Provider Integration Testing
 
 ---
 
 ## Current State
 
-The project is post-MVP with all known data-integrity issues resolved. Session 10 closed W-3, W-4, W-5, and W-8 from the known limitations, delivered the first post-MVP feature (bulk transaction paste), established CI, and added performance benchmarking. All pages are functional with live data. The advisor chat panel is wired end-to-end.
+Session 11 migrated all market data providers to work with real APIs. FMP was migrated from dead `/api/v3/` endpoints to the `/stable/` API. Stooq was replaced by a new Tiingo provider for historical daily bars. The provider chain was rewired, all mock fixtures updated to match real response shapes, and a per-hour rate limit bucket was added for Tiingo.
 
 ### What Exists
 
@@ -15,7 +15,7 @@ The project is post-MVP with all known data-integrity issues resolved. Session 1
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined, database seeded with 28 instruments
-- Vitest 3.2.4 — **506 tests** passing across **42 test files**
+- Vitest 3.2.4 — **526 tests** passing across **43 test files**
 - Next.js 15.5.12 App Router with all API routes + all UI pages (including advisor)
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
@@ -28,17 +28,28 @@ The project is post-MVP with all known data-integrity issues resolved. Session 1
 - **`prefers-reduced-motion`** CSS support gating all animations
 
 **Packages implemented:**
-- `@stalker/shared` — Types, Decimal.js utilities, ULID generation, constants (exchange timezone map)
+- `@stalker/shared` — Types (incl. `ProviderLimits.requestsPerHour`), Decimal.js utilities, ULID generation, constants
 - `@stalker/analytics` — Complete:
   - FIFO lot engine, PnL computation, sell validation invariant
   - PriceLookup / SnapshotStore / CalendarFns interfaces
   - buildPortfolioValueSeries, rebuildSnapshotsFrom, queryPortfolioWindow
 - `@stalker/market-data` — Complete:
-  - MarketCalendar, 3 providers (FMP, Stooq, Alpha Vantage), rate limiter, fallback chain, cache
+  - MarketCalendar, 3 active providers (FMP, Tiingo, Alpha Vantage), rate limiter (per-min + per-hour + per-day), fallback chain, cache
+  - Stooq deprecated (file kept for reference, not in active chain)
 - `@stalker/scheduler` — Complete:
-  - Config loader, budget check, poller, graceful shutdown
+  - Config loader (with Tiingo env vars), budget check, poller, graceful shutdown
 
-**API Layer (Sessions 4–10):**
+**Session 11 Provider Integration:**
+- **FMP `/stable/` migration:** Search via `/stable/search-symbol`, quotes via `/stable/quote`. `getHistory()` disabled (premium-only).
+- **TiingoProvider (new):** Historical daily bars via `/tiingo/daily/{sym}/prices`, quotes via `/iex/{sym}`. Uses adjusted prices (adjClose/adjOpen/adjHigh/adjLow). Safe text-first JSON parsing for rate limit detection.
+- **Provider chain:** FMP (search + quotes) → Alpha Vantage (backup quotes) → Tiingo (sole history provider)
+- **Rate limiter:** Added per-hour sliding window bucket for Tiingo (50 req/hr default)
+- **Decimal safety:** All JSON numbers from FMP/Tiingo convert via `toDecimal(String(value))` — no `parseFloat`/`Number()` in financial paths
+- **Symbol mapping:** Tiingo uses hyphens (BRK-B), FMP uses dots (BRK.B) — `providerSymbolMap` handles this
+- **Mock fixtures:** All updated to match real `/stable/` and Tiingo response shapes
+- **Smoke test data:** Real API responses archived in `data/test/smoke-responses/`
+
+**API Layer (Sessions 4–11):**
 - **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete
 - **Transaction CRUD:** POST/GET/GET[id]/PUT/DELETE with sell validation via `validateTransactionSet()`
 - **Bulk transactions:** POST /api/transactions/bulk — tab-separated batch with all-or-none sell validation (AD-S10c)
@@ -47,50 +58,26 @@ The project is post-MVP with all known data-integrity issues resolved. Session 1
 - **Prisma interface implementations:** PrismaPriceLookup (carry-forward), PrismaSnapshotStore (Decimal serialization, accepts tx client)
 - **Shared utilities:** errors.ts (apiError factory), Zod validators, prisma singleton
 
-**Session 10 Data Integrity Fixes (Phase 0):**
-- AD-S10a: Snapshot rebuild wrapped in `prisma.$transaction()` — atomic delete + recompute + insert
-- AD-S10b: GET /api/portfolio/snapshot is strictly read-only — POST /api/portfolio/rebuild for explicit rebuild
-- W-5: Anthropic tool_result message translation fully documented
-- W-8: Advisor `formatNum()` uses Decimal.toFixed(2) instead of parseFloat()
-
-**Session 10 Bulk Paste Feature (Phase 1):**
-- `bulk-parser.ts` — Tab/multi-space-separated text parser with per-row validation (23 tests)
-- `POST /api/transactions/bulk` — Batch insert with Zod validation, symbol resolution, sell invariant, $transaction, snapshot rebuild (8 tests)
-- `BulkPastePanel.tsx` — Collapsible disclosure with textarea, parse button, preview table, confirm button
-- `BulkPreviewTable.tsx` — Per-row validation with green/red indicators, error messages
-- `useBulkImport.ts` — Hook for API call with loading/error state
-
-**Session 10 CI & Hardening (Phase 1):**
-- Cross-validation script wrapped as 3 Vitest tests (749 sub-checks across Path A/B/C)
-- GitHub Actions CI: type-check → test → build
-- Snapshot rebuild benchmark: 147ms for 20 instruments + 215 transactions
-- `prefers-reduced-motion` CSS media query gating all animations
-
-**UI Foundation (Session 5 — all implemented):**
-- **Design system:** Tailwind v4 dark theme, 3 bundled fonts (next/font/local), CSS variables, `cn()` utility
-- **12 base components:** Button, Input, Select, Card, Badge, Table, Tooltip, Toast, Modal, PillToggle, Skeleton, ValueChange
-- **4 layout components:** Shell (now wraps ToastProvider), NavTabs, DataHealthFooter (live), AdvisorFAB
-- **4 empty states:** Dashboard, Holdings, Transactions, Advisor
-- **6 formatting utilities:** formatCurrency, formatPercent, formatQuantity, formatCompact, formatDate, formatRelativeTime (49 tests)
-
 **Reference Portfolio Fixtures** (`data/test/`):
 - `reference-portfolio.json` — 6 instruments, 25 transactions, 56 trading days of mock prices
 - `expected-outputs.json` — Hand-computed expected values at 6 checkpoint dates
 - 24 fixture-based validation tests + 3 cross-validation wrapper tests (749 sub-checks)
+- `provider-smoke-results.md` — Phase 0 smoke test findings with exact response shapes
+- `smoke-responses/` — Raw API response JSON files from live providers
 
 ### What Does Not Exist Yet
 
-- Historical price backfill in instrument creation (stubbed — needs live API keys)
-- Manual quote refresh (stubbed — needs live API keys)
-- Symbol search proxy (stubbed — needs live API keys)
+- Historical price backfill in instrument creation (stubbed — providers now wired, needs API route integration)
+- Manual quote refresh (stubbed — providers now wired, needs API route integration)
+- Symbol search proxy (stubbed — FMP search now works, needs API route integration)
 
-### Known Stubs (Ready to Wire)
+### Known Stubs (Ready to Wire — Providers Are Now Live)
 
 | Stub | Location | What's Needed |
 |------|----------|---------------|
-| Historical backfill on instrument create | `apps/web/src/app/api/instruments/route.ts` | Call market data service `getHistory()`, write PriceBars, set firstBarDate |
-| Symbol search | `apps/web/src/app/api/market/search/route.ts` | Wire to MarketDataService.searchSymbols() |
-| Manual quote refresh | `apps/web/src/app/api/market/refresh/route.ts` | Wire to MarketDataService.getQuote() per instrument |
+| Historical backfill on instrument create | `apps/web/src/app/api/instruments/route.ts` | Instantiate MarketDataService with TiingoProvider, call `getHistory()`, write PriceBars |
+| Symbol search | `apps/web/src/app/api/market/search/route.ts` | Instantiate MarketDataService with FmpProvider, call `searchSymbols()` |
+| Manual quote refresh | `apps/web/src/app/api/market/refresh/route.ts` | Instantiate MarketDataService, call `getQuote()` per instrument |
 
 ### Known Limitations
 
@@ -102,18 +89,18 @@ See `KNOWN-LIMITATIONS.md` for the current list. W-3, W-4, W-5, W-8 resolved in 
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 506 |
-| Test files | 42 |
+| Test count (total) | 526 |
+| Test files | 43 |
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (all implemented) |
 | API endpoints | 21 (20 implemented + 2 stubs: search, refresh) |
-| UI components | 48 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 7 transactions + 2 instruments + 1 chart hook + 7 advisor + 1 focus trap hook + 1 bulk import hook) |
-| Data hooks | 12 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart, advisor, focus trap, bulk import) |
-| Utility modules | 7 (window-utils, chart-utils, chart-candlestick-utils, holdings-utils, transaction-utils, fetch-with-timeout, bulk-parser) |
+| UI components | 48 |
+| Data hooks | 12 |
+| Utility modules | 7 |
 | UI pages | 6 of 6 (all data-wired including advisor) |
 | Prisma tables | 7 of 7 |
-| Market data providers | 3 of 3 |
-| Scheduler | Complete |
+| Market data providers | 3 active (FMP, Tiingo, AV) + 1 deprecated (Stooq) |
+| Scheduler | Complete (wired to Tiingo) |
 | Analytics engine | Complete |
 | Advisor engine | Complete |
 | Reference portfolio | Complete + cross-validation in CI |
@@ -122,14 +109,25 @@ See `KNOWN-LIMITATIONS.md` for the current list. W-3, W-4, W-5, W-8 resolved in 
 
 ---
 
+## Architecture Decisions (Session 11)
+
+| # | Decision | Rationale |
+|---|----------|-----------|
+| AD-S11-1 | Tiingo replaces Stooq as historical daily bars provider | Stooq has no formal API, IP-rate-limiting, CAPTCHA risk. Tiingo provides REST API with JSON, 30+ years of data, documented limits. |
+| AD-S11-2 | FMP role reduced to search + quotes only | Free tier no longer includes historical EOD data after Aug 2025 cutoff. |
+| AD-S11-3 | Use Tiingo adjusted prices as default | Adjusted prices account for splits and dividends. Matches user expectations for historical portfolio value. |
+| AD-S11-4 | FMP price numbers convert via String intermediary | `new Decimal(272.11)` risks float contamination. `toDecimal(String(272.11))` = `"272.11"` is exact. |
+
+---
+
 ## Post-MVP Priorities
 
 1. ~~Bulk transaction paste input~~ — Completed (Session 10)
-2. **Live API key wiring** — Symbol search, manual quote refresh, historical price backfill
-3. ~~CI pipeline~~ — Completed (Session 10)
+2. ~~Provider integration testing~~ — Completed (Session 11)
+3. **Wire stubs to live providers** — Symbol search, manual quote refresh, historical price backfill (providers ready, API routes still stubbed)
 4. **Holiday/half-day market calendar** — Reduce wasted API calls on market holidays
 5. **Advisor context window management** — Token counting, summary generation for long threads
-6. ~~`prefers-reduced-motion` support~~ — Completed (Session 10)
+6. ~~CI pipeline~~ — Completed (Session 10)
 7. **Responsive refinements** — Tablet/mobile layout adjustments
 8. ~~Performance profiling~~ — Benchmark established (Session 10)
 
@@ -145,7 +143,14 @@ None.
 
 Both processes start via `pnpm dev`:
 - Next.js dev server (web)
-- Scheduler process (requires `FMP_API_KEY` in `.env.local`)
+- Scheduler process (requires `FMP_API_KEY` and `TIINGO_API_KEY` in `.env.local`)
 
 Database at `apps/web/data/portfolio.db`.
 Seed with `cd apps/web && npx prisma db seed`.
+
+Environment variables required in `apps/web/.env.local`:
+- `FMP_API_KEY` — Financial Modeling Prep (search + quotes)
+- `ALPHA_VANTAGE_API_KEY` — Alpha Vantage (backup quotes)
+- `TIINGO_API_KEY` — Tiingo (historical bars)
+- `TIINGO_RPH=50` — Tiingo requests per hour
+- `TIINGO_RPD=1000` — Tiingo requests per day
