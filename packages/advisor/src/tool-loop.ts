@@ -88,9 +88,10 @@ export async function executeToolLoop(params: {
   }
 
   // Max iterations reached — return whatever we have
+  // Use || (not ??) to coalesce empty strings to the fallback message
   const lastAssistant = generatedMessages.filter((m) => m.role === 'assistant').pop();
   return {
     messages: generatedMessages,
-    finalResponse: lastAssistant?.content ?? 'I was unable to complete the analysis within the allowed number of steps.',
+    finalResponse: lastAssistant?.content || 'I was unable to complete the analysis within the allowed number of steps.',
   };
 }

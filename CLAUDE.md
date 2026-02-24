@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-23 (Post-Session 8)
+**Last Updated:** 2026-02-24 (Post-Session 9 — MVP Complete)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -610,6 +610,38 @@ const {
 | `apps/web/__tests__/api/advisor/threads.test.ts` | 8 | Thread list, thread detail, thread delete, 404, 500 |
 | `apps/web/__tests__/api/advisor/useAdvisor.test.ts` | 7 | Frontend API integration (fetch shapes, error handling) |
 | Hardening tests (Phases 0) | 6 | search route, fetchWithTimeout |
+
+---
+
+## Session 9 — Full-Stack Validation + Polish + MVP Signoff
+
+### Phase 0: Live LLM Verification
+
+| Change | Detail |
+|--------|--------|
+| Tool loop empty string fix | `tool-loop.ts` line 94: `??` → `||` to coalesce empty strings to fallback message |
+| Model update | Default model changed to `claude-sonnet-4-6` |
+| Adaptive thinking | `thinking: { type: 'adaptive' }` added to Anthropic adapter for higher-quality advisor responses |
+| Max tokens increase | Default `max_tokens` raised from 4096 to 16000 to accommodate adaptive thinking |
+| Live verification | All 5 advisor intent categories verified against real LLM with seed data |
+
+### Phase 2: Accessibility & Polish
+
+| Component | Change |
+|-----------|--------|
+| `useFocusTrap` hook | New hook at `apps/web/src/lib/hooks/useFocusTrap.ts` — Tab cycling, Shift+Tab backward, focus return on close |
+| `AdvisorPanel` | Focus trap wired, `role="dialog"`, `aria-label`, `aria-modal="true"`, `aria-hidden` |
+| `Toast` container | `role="status"`, `aria-live="polite"` on container |
+| `UnpricedWarning` | `role="alert"` added |
+| `DeleteConfirmation` | `id="delete-confirm-desc"` for ARIA describedby |
+
+### New Documentation
+
+| File | Purpose |
+|------|---------|
+| `KNOWN-LIMITATIONS.md` | 8 documented MVP gaps with impact and mitigation |
+| `data/test/advisor-live-verification.md` | All 5 intent categories verified with pass/fail |
+| `data/test/smoke-test-results.md` | 22-point smoke test results |
 
 ---
 

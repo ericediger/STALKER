@@ -133,7 +133,7 @@ describe('executeToolLoop', () => {
     expect(toolMsg!.content).toContain('Unknown tool: unknownTool');
   });
 
-  it('stops at maxIterations and returns last assistant content', async () => {
+  it('stops at maxIterations and returns fallback message for empty content', async () => {
     // Always returns tool calls — never a final response
     const adapter = createMockAdapter([
       {
@@ -159,9 +159,10 @@ describe('executeToolLoop', () => {
       maxIterations: 2,
     });
 
-    // Last assistant message has empty content '' — ?? only triggers on null/undefined
-    // So the finalResponse is '' (from the last assistant message), not the fallback string
-    expect(result.finalResponse).toBe('');
+    // || coalesces empty strings to the fallback message (unlike ?? which only catches null/undefined)
+    expect(result.finalResponse).toBe(
+      'I was unable to complete the analysis within the allowed number of steps.'
+    );
   });
 
   it('propagates adapter errors to caller', async () => {

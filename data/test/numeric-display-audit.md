@@ -1,175 +1,154 @@
-# Numeric Display Audit
+# Numeric Display Audit Report
 
 **Date:** 2026-02-24
-**Engineer:** validation-engineer (Session 9)
+**Session:** 9 (Code-Level Decimal Precision Audit)
+**Scope:** `apps/web/src/` -- all UI components, format utilities, API routes, and advisor tooling
+**Rule:** All financial values (money, quantity) MUST use Decimal.js. No `Number`, `parseFloat`, `Math.round`, or arithmetic operators on financial values. Exceptions only for TradingView chart utilities.
 
 ---
 
 ## Method
 
-For each value, I compare:
-1. **API Response** — the raw string value from the API endpoint
-2. **Hand Computation** — independent calculation from source data
-3. **Expected UI Display** — what `formatCurrency()` / `formatPercent()` would produce
-4. **Checks** — formatting correctness (commas, decimals, sign, precision)
-
-API data fetched from localhost:3000 with seed database (28 instruments, 30 transactions).
-
----
-
-## Audit Values
-
-### 1. Portfolio Total Value (Dashboard Hero Metric)
-
-- **API Source:** `GET /api/portfolio/snapshot` → `totalValue: "302885.71"`
-- **Hand Computation:** Sum of 28 holdings values = $302,885.71 (verified in cross-validation)
-- **Expected UI:** `formatCurrency("302885.71")` = `"$302,885.71"`
-- **Checks:**
-  - Commas: present at thousands separator
-  - Decimals: exactly 2 decimal places
-  - No float artifacts (no 302885.709999...)
-  - **PASS**
-
-### 2. Day Change Amount
-
-- **API Source:** `snapshot.window.changeAmount: "1797.92"`
-- **Hand Computation:** 302885.71 - 301087.79 = 1797.92
-- **Expected UI:** `formatCurrency("1797.92", { showSign: true })` = `"+$1,797.92"` (positive)
-- **Checks:**
-  - Positive sign shown: + prefix
-  - Commas: present
-  - Color: green (accent-positive) since value is positive
-  - **PASS**
-
-### 3. Day Change Percentage
-
-- **API Source:** `snapshot.window.changePct: "0.006"`
-- **Hand Computation:** 1797.92 / 301087.79 = 0.005970... (ratio), which is 0.60% (percentage)
-- **Expected UI:** `formatPercent("0.006", { showSign: true })` = `"+0.01%"`
-- **Finding:**
-  - The API returns the decimal ratio (0.006) not the percentage (0.60)
-  - The UI displays "+0.01%" but the correct display should be "+0.60%"
-  - All other % fields (unrealizedPnlPct, allocation) multiply by 100 correctly
-  - **ISSUE — changePct not multiplied by 100 (see cross-validation-results.md)**
-
-### 4. AAPL Unrealized PnL
-
-- **API Source:** `GET /api/portfolio/holdings/AAPL` → `unrealizedPnl: "2161.6"`
-- **Hand Computation:** 70 * 216.38 - 70 * 185.50 = 15146.6 - 12985 = 2161.6
-- **Expected UI:** `formatCurrency("2161.6")` = `"$2,161.60"`
-- **Checks:**
-  - Two decimal places: .60 (toFixed(2) pads)
-  - Commas: present
-  - No float artifacts
-  - **PASS**
-
-### 5. MSFT Unrealized PnL
-
-- **API Source:** `GET /api/portfolio/holdings/MSFT` → `unrealizedPnl: "5807"`
-- **Hand Computation:** 75 * 495.76 - (50*420 + 25*415) = 37182 - 31375 = 5807
-- **Expected UI:** `formatCurrency("5807")` = `"$5,807.00"`
-- **Checks:**
-  - Two decimal places: .00 (toFixed(2) pads integer)
-  - Commas: present
-  - **PASS**
-
-### 6. GOOGL Unrealized PnL
-
-- **API Source:** `GET /api/portfolio/holdings` → GOOGL `unrealizedPnl: "1164.75"`
-- **Hand Computation:** 75 * 190.53 - 75 * 175 = 14289.75 - 13125 = 1164.75
-- **Expected UI:** `formatCurrency("1164.75")` = `"$1,164.75"`
-- **Checks:**
-  - Commas: present
-  - Exact two decimal places
-  - **PASS**
-
-### 7. AAPL Allocation Percentage
-
-- **API Source:** `snapshot.holdings[AAPL].allocation: "5.00"`
-- **Hand Computation:** 15146.6 / 302885.71 * 100 = 5.001...% rounded to "5.00"
-- **Expected UI:** `formatPercent("5.00")` = `"5.00%"`
-- **Checks:**
-  - Two decimal places
-  - No sign prefix (allocation is always positive)
-  - **PASS**
-
-### 8. MSFT Allocation Percentage
-
-- **API Source:** `snapshot.holdings[MSFT].allocation: "12.28"`
-- **Hand Computation:** 37182 / 302885.71 * 100 = 12.276...% rounded to "12.28"
-- **Expected UI:** `formatPercent("12.28")` = `"12.28%"`
-- **Checks:**
-  - Two decimal places
-  - Correct rounding (12.276 → 12.28)
-  - **PASS**
-
-### 9. AAPL Lot Cost Basis (Holding Detail)
-
-- **API Source:** `GET /api/portfolio/holdings/AAPL` → `lots[0].costBasisRemaining: "12985"`
-- **Hand Computation:** 70 shares * $185.50/share = $12,985.00
-- **Expected UI:** `formatCurrency("12985")` = `"$12,985.00"`
-- **Checks:**
-  - Commas: present
-  - Two decimal places
-  - **PASS**
-
-### 10. AAPL Realized PnL (Holding Detail)
-
-- **API Source:** `GET /api/portfolio/holdings/AAPL` → `realizedPnl: "280.05"`
-- **Hand Computation:**
-  - SELL 30 @ $195.00 = proceeds $5,850.00
-  - Cost basis: 30 * $185.50 = $5,565.00
-  - Fees: $4.95
-  - Realized PnL: $5,850.00 - $5,565.00 - $4.95 = $280.05
-- **Expected UI:** `formatCurrency("280.05")` = `"$280.05"`
-- **Checks:**
-  - Exact two decimal places
-  - Positive value (no minus sign)
-  - Fees correctly deducted
-  - **PASS**
+Searched `apps/web/src/` for:
+1. `parseFloat(` usage on financial values
+2. `Math.round(`, `Math.floor(`, `Math.ceil(` on financial values
+3. `Number(` outside of approved chart utility files
+4. Arithmetic operators (`+`, `-`, `*`, `/`) on values that should be Decimal
+5. `.toFixed(` usage that should use `formatCurrency`/`formatPercent` instead
+6. Manual review of all key UI components and API routes
 
 ---
 
-## Summary
+## Files Audited
 
-| # | Value | API String | Expected Display | Correct? |
-|---|-------|-----------|-----------------|----------|
-| 1 | Portfolio total value | "302885.71" | $302,885.71 | PASS |
-| 2 | Day change amount | "1797.92" | +$1,797.92 | PASS |
-| 3 | Day change % | "0.006" | +0.60% | ISSUE |
-| 4 | AAPL unrealized PnL | "2161.6" | $2,161.60 | PASS |
-| 5 | MSFT unrealized PnL | "5807" | $5,807.00 | PASS |
-| 6 | GOOGL unrealized PnL | "1164.75" | $1,164.75 | PASS |
-| 7 | AAPL allocation | "5.00" | 5.00% | PASS |
-| 8 | MSFT allocation | "12.28" | 12.28% | PASS |
-| 9 | AAPL lot cost basis | "12985" | $12,985.00 | PASS |
-| 10 | AAPL realized PnL | "280.05" | $280.05 | PASS |
+### UI Components
 
-**Result: 9/10 PASS, 1 ISSUE**
+| File | Status | Notes |
+|------|--------|-------|
+| `src/components/dashboard/HeroMetric.tsx` | PASS | Uses `formatCurrency()` and `ValueChange` component for all financial values |
+| `src/components/dashboard/SummaryCards.tsx` | PASS | Uses `add()`, `toDecimal()` from `@stalker/shared`; renders via `ValueChange` |
+| `src/components/holdings/HoldingsTable.tsx` | PASS | Uses `formatCurrency`, `formatPercent`, `formatQuantity`, `ValueChange` for all display |
+| `src/components/holdings/TotalsRow.tsx` | PASS | Delegates to `computeTotals()` (Decimal-based) + `formatCurrency`/`ValueChange` |
+| `src/components/holding-detail/PositionSummary.tsx` | PASS | Uses `toDecimal`, `div` from `@stalker/shared`; all rendering via format functions |
+| `src/components/holding-detail/LotsTable.tsx` | PASS | All arithmetic via `new Decimal()` constructor/methods; rendering via `formatCurrency`/`formatQuantity`/`ValueChange` |
+| `src/components/holding-detail/HoldingTransactions.tsx` | PASS | Uses `formatCurrency`, `formatQuantity`, `formatDate` for all financial values |
+| `src/components/transactions/TransactionsTable.tsx` | PASS | Uses `mul`, `toDecimal` from `@stalker/shared`; renders via `formatCurrency`/`formatQuantity` |
+| `src/components/transactions/TransactionForm.tsx` | PASS | String-based form fields; no direct numeric operations on financial values |
+| `src/components/ui/ValueChange.tsx` | PASS | Uses `toDecimal` from `@stalker/shared` for sign detection; delegates to `formatCurrency`/`formatPercent` |
+| `src/components/layout/DataHealthFooter.tsx` | PASS | `Math.round()` on seconds/minutes (time intervals, not financial values) |
+
+### Format & Utility Libraries
+
+| File | Status | Notes |
+|------|--------|-------|
+| `src/lib/format.ts` | PASS | All formatters use `Decimal.js` internally via `safeParse()`. `Math.floor()` at L218-224 operates on time difference (seconds), not financial values. All `.toFixed()` calls are `Decimal.toFixed()`, not `Number.toFixed()`. |
+| `src/lib/holdings-utils.ts` | PASS | All arithmetic via `new Decimal()`. `sortHoldings()` uses `Decimal.cmp()`. `computeAllocation()` and `computeTotals()` are fully Decimal-based. `.toFixed(2)` at L63 is `Decimal.toFixed`, not `Number.toFixed`. |
+| `src/lib/chart-utils.ts` | APPROVED EXCEPTION | `Number()` at L28 for TradingView chart rendering. Documented in file header. |
+| `src/lib/chart-candlestick-utils.ts` | APPROVED EXCEPTION | `Number()` at L33-36 for TradingView chart rendering. Documented in file header. |
+| `src/lib/transaction-utils.ts` | PASS (see Acceptable Patterns) | `.toNumber()` at L174, L180, L186, L192 used only for sort comparator return value. Underlying math is Decimal-based. |
+| `src/lib/validators/transactionInput.ts` | PASS (see Acceptable Patterns) | `parseFloat()` at L6 used in a Zod `.refine()` boolean guard, not for financial arithmetic or storage. |
+| `src/lib/cn.ts` | N/A | CSS class merging utility; no numeric operations |
+| `src/lib/window-utils.ts` | N/A | Date range computation; no financial values |
+
+### API Routes
+
+| File | Status | Notes |
+|------|--------|-------|
+| `src/app/api/portfolio/holdings/route.ts` | PASS | All arithmetic via `toDecimal`, `mul`, `div` from `@stalker/shared`. `.toFixed(2)` calls are `Decimal.toFixed`. Values serialized as `.toString()`. |
+| `src/app/api/portfolio/holdings/[symbol]/route.ts` | PASS | Same pattern. Decimal arithmetic, `.toFixed(2)` is Decimal method, serialized as strings. |
+| `src/app/api/portfolio/snapshot/route.ts` | PASS | Uses `sub`, `div`, `isZero`, `toDecimal` from `@stalker/shared`. `.toFixed()` on Decimal objects. `serializeDecimal()` for output. |
+| `src/app/api/market/status/route.ts` | PASS | `Math.floor()` at L41 and `Math.max()` at L49 operate on time interval minutes (not financial values). |
+| `src/app/api/advisor/chat/route.ts` | FINDING | See Finding 1 below. |
+
+### Advisor Chat Route Breakdown
+
+| Location | Status | Notes |
+|----------|--------|-------|
+| L90-95 (snapshot holdings allocation) | PASS | Decimal `.dividedBy().times().toFixed(2)` -- all Decimal methods |
+| L107-114 (snapshot totals) | PASS | Uses `formatNum()` on Decimal values, serialized as formatted strings |
+| L141-150 (fallback holdings) | PASS | Same Decimal pattern as above |
+| L184-222 (holding detail) | PASS | All arithmetic via Decimal. `formatNum()` for display. |
+| L260-268 (transactions) | PASS | `toDecimal().times()` for total; `formatNum()` for display |
+| L296-303 (quotes age) | PASS | Time interval math, not financial values |
+| L365-367 (`formatNum` function) | FINDING | See Finding 1 below |
 
 ---
 
-## Formatting Quality Assessment
+## Findings
 
-### Decimal Precision
-All API values use exact string representation via Decimal.js. No floating-point artifacts detected (no values like 280.04999999...). The `formatCurrency()` function correctly uses `toFixed(2)` via Decimal.js, not native JavaScript `Number.toFixed()`.
+### Finding 1: `formatNum()` in advisor chat route uses `parseFloat()`
 
-### Sign Handling
-- `formatCurrency()` with `showSign: true` correctly prefixes positive values with "+"
-- Negative values use "-$" format (minus before dollar sign)
-- Zero is never displayed as "-$0.00" (normalized via `d.isZero() ? d.abs() : d`)
+**File:** `apps/web/src/app/api/advisor/chat/route.ts`
+**Lines:** 365-368
+**Severity:** Low (LLM display context only)
 
-### Comma Separators
-- `addThousandsSeparators()` uses regex `/\B(?=(\d{3})+(?!\d))/g` — correct for all tested values
-- Applied to integer portion only, decimal portion preserved
+```typescript
+function formatNum(value: { toFixed(dp: number): string; toNumber?(): number }): string {
+  const num = parseFloat(value.toFixed(2));
+  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+```
 
-### Font
-- Financial values use `font-mono tabular-nums` CSS classes for aligned columns
-- `ValueChange` component applies `tabular-nums` for consistent number width
+**What is wrong:** Uses `parseFloat()` on a Decimal-formatted string. This converts through IEEE 754 floating-point representation, which can introduce rounding errors for values with many significant digits. For example, a value like `"999999999999999.99"` could lose precision due to the 15-17 significant digit limit of `Number`.
 
-### Issue: changePct Semantic Mismatch
-The `changePct` field in the snapshot response is the ONLY percentage-type field in the API that returns a decimal ratio instead of a percentage value. The fix is a one-line change in `apps/web/src/app/api/portfolio/snapshot/route.ts`:
-- Current: `toDecimal(div(absoluteChange, startValue).toFixed(4))`
-- Fix: `toDecimal(div(absoluteChange, startValue).times(100).toFixed(2))`
+**Impact:** Low. This function formats values exclusively for LLM tool output (text shown in the advisor chat panel), not for financial storage, API responses consumed by the frontend UI, or further arithmetic. The prior `.toFixed(2)` truncation limits the damage to extremely large values only. However, it still technically violates the project's Decimal precision rule (Rule 1 in CLAUDE.md).
 
-Or equivalently, the `buildResponseFromSnapshots` function's `percentageChange` should multiply by 100.
+**Recommended fix:** Replace with Decimal-native string formatting:
+```typescript
+function formatNum(value: { toFixed(dp: number): string }): string {
+  const fixed = value.toFixed(2);
+  const isNeg = fixed.startsWith('-');
+  const abs = isNeg ? fixed.slice(1) : fixed;
+  const parts = abs.split('.');
+  const intPart = parts[0] ?? '0';
+  const fracPart = parts[1] ?? '00';
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (isNeg ? '-' : '') + withCommas + '.' + fracPart;
+}
+```
+
+---
+
+## Approved Exceptions
+
+| File | Lines | Reason |
+|------|-------|--------|
+| `src/lib/chart-utils.ts` | L28 (`Number(point.totalValue)`) | TradingView Lightweight Charts requires `number` values for rendering. Documented in file header comment (AD-S6c). |
+| `src/lib/chart-candlestick-utils.ts` | L33-36 (`Number(bar.open)` etc.) | TradingView Lightweight Charts requires `number` values for rendering. Documented in file header comment (AD-S6c). |
+
+---
+
+## Acceptable Patterns (Not Violations)
+
+| File | Lines | Pattern | Reason |
+|------|-------|---------|--------|
+| `src/lib/transaction-utils.ts` | L174, L180, L186, L192 | `.toNumber()` on Decimal difference | `Array.sort()` comparator must return a `number`. The underlying arithmetic is fully Decimal-based (`toDecimal(a).minus(toDecimal(b))`); only the final comparison result is converted. This is not a display, storage, or financial arithmetic issue. |
+| `src/lib/validators/transactionInput.ts` | L6 | `parseFloat(s) > 0` | Boolean validation refinement inside a Zod schema. The string `s` has already passed a regex check (`/^\d+(\.\d+)?$/`), ensuring it is a valid decimal format. The parsed float is used only for a `> 0` truth check, never stored or displayed. The actual value continues through the pipeline as a string. |
+| `src/lib/format.ts` | L218-224 | `Math.floor()` on time diffs | Time interval computation (seconds, minutes, hours, days). Not financial values. |
+| `src/components/layout/DataHealthFooter.tsx` | L6-8 | `Math.round()` on seconds/minutes | Time interval display formatting (polling interval). Not financial values. |
+| `src/app/api/market/status/route.ts` | L41, L49 | `Math.floor()`, `Math.max()` | Time interval computation (quote age in minutes). Not financial values. |
+| `src/app/api/advisor/chat/route.ts` | L296-303 | `ageMs / (1000 * 60 * 60)` | Time interval (quote age in hours). Not financial values. |
+| `src/lib/holdings-utils.ts` | L63 | `.toFixed(2)` | This is `Decimal.toFixed(2)` (method on Decimal.js instance), not `Number.prototype.toFixed(2)`. Correct usage. |
+| `src/app/api/portfolio/**/*.ts` | Multiple | `.toFixed(2)` | All are `Decimal.toFixed(2)` calls (method on Decimal.js instance), not native Number. Correct usage. |
+
+---
+
+## Overall Verdict
+
+### **PASS** (with one low-severity advisory finding)
+
+The codebase correctly follows the Decimal precision rule (Rule 1 in CLAUDE.md) across all user-facing UI components, format utilities, holdings utilities, and API routes. Key observations:
+
+1. **UI Components (11 audited):** All PASS. Every component delegates financial value rendering to `formatCurrency()`, `formatPercent()`, `formatQuantity()`, or the `ValueChange` component. No direct numeric operations on financial values found in any component.
+
+2. **Format Library:** PASS. `format.ts` uses `Decimal.js` internally via `safeParse()` for all financial formatting. Invalid inputs safely return an em dash.
+
+3. **Holdings/Transaction Utilities:** PASS. All arithmetic uses `Decimal` constructors and methods. Sort comparators correctly use `.toNumber()` only for the final comparison result.
+
+4. **API Routes (5 audited):** All PASS. Values serialized as strings via `.toString()` or `serializeDecimal()`. Percentage calculations use `Decimal.dividedBy().times(100).toFixed(2)`.
+
+5. **Chart Utilities (2 files):** Approved exceptions with `Number()` for TradingView, documented in file headers.
+
+6. **Advisor Chat Route:** One low-severity finding -- `formatNum()` helper uses `parseFloat()` for locale formatting of LLM-facing text output. Does not affect user-facing UI, stored data, or API contracts. Should be fixed for consistency.
+
+**No user-visible precision bugs detected.**

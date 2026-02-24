@@ -17,7 +17,7 @@ export class AnthropicAdapter implements LLMAdapter {
       throw new Error('ANTHROPIC_API_KEY environment variable is not set');
     }
     this.client = new Anthropic({ apiKey });
-    this.defaultModel = process.env['LLM_MODEL'] ?? 'claude-sonnet-4-5-20250514';
+    this.defaultModel = process.env['LLM_MODEL'] ?? 'claude-sonnet-4-6';
   }
 
   async chat(
@@ -26,7 +26,7 @@ export class AnthropicAdapter implements LLMAdapter {
     options?: { model?: string; maxTokens?: number; systemPrompt?: string },
   ): Promise<LLMResponse> {
     const model = options?.model ?? this.defaultModel;
-    const maxTokens = options?.maxTokens ?? 4096;
+    const maxTokens = options?.maxTokens ?? 16000;
 
     // Convert internal messages to Anthropic format
     const anthropicMessages = this.toAnthropicMessages(messages);
@@ -41,6 +41,7 @@ export class AnthropicAdapter implements LLMAdapter {
     const response = await this.client.messages.create({
       model,
       max_tokens: maxTokens,
+      thinking: { type: 'adaptive' },
       system: options?.systemPrompt ?? undefined,
       messages: anthropicMessages,
       tools: anthropicTools.length > 0 ? anthropicTools : undefined,
@@ -120,6 +121,7 @@ export class AnthropicAdapter implements LLMAdapter {
           arguments: block.input as Record<string, unknown>,
         });
       }
+      // Skip 'thinking' blocks — adaptive thinking content is internal only
     }
 
     return {

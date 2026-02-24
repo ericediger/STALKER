@@ -1,414 +1,307 @@
 /**
- * cross-validate.ts — API-Level Cross-Validation Script
+ * Cross-Validation Script for STALKER Reference Portfolio
  *
- * This script verifies that the STALKER API returns correct PnL,
- * lot details, and portfolio values by comparing API responses
- * against hand-computed expected values.
+ * A standalone script that independently recomputes portfolio values, FIFO lot
+ * states, and realized PnL from the reference-portfolio.json fixtures, then
+ * compares every value against expected-outputs.json.
  *
- * Two modes:
- *   1. Seed data validation (default) — checks the 28-instrument seed portfolio
- *      for internal consistency (lot math, PnL formulas, allocation sums).
- *   2. Reference portfolio validation — requires a clean database loaded with
- *      the 6-instrument reference fixtures. Verifies at all 6 checkpoints.
+ * THREE independent validation paths:
+ *   Part A: Uses @stalker/analytics engine (processTransactions, buildPortfolioValueSeries)
+ *   Part B: Fully independent FIFO + valuation from scratch (no analytics engine)
+ *   Part C: Cross-checks engine vs independent for consistency
+ *
+ * All financial math uses Decimal.js via @stalker/shared. No Number() on money.
  *
  * Usage:
- *   npx tsx data/test/cross-validate.ts [--mode seed|reference] [--base-url http://localhost:3000]
- *
- * Prerequisites:
- *   - Dev server running on the specified base URL
- *   - Database seeded with the appropriate data for the chosen mode
+ *   npx tsx data/test/cross-validate.ts
  */
 
-import Decimal from 'decimal.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import {
+  Decimal,
+  toDecimal,
+  add,
+  sub,
+  mul,
+  ZERO,
+} from '@stalker/shared';
+import type {
+  Transaction,
+  Instrument,
+  TransactionType,
+  InstrumentType,
+} from '@stalker/shared';
+import {
+  processTransactions,
+  computeRealizedPnL,
+  buildPortfolioValueSeries,
+  MockPriceLookup,
+  MockSnapshotStore,
+} from '@stalker/analytics';
+import type { HoldingSnapshotEntry, CalendarFns } from '@stalker/analytics';
 
 // ---------------------------------------------------------------------------
-// Configuration
+// Load fixture files
 // ---------------------------------------------------------------------------
 
-const BASE_URL = process.argv.find((a) => a.startsWith('--base-url='))
-  ?.split('=')[1] ?? 'http://localhost:3000';
+const fixtureDir = path.resolve(__dirname);
+const refPortfolio = JSON.parse(
+  fs.readFileSync(path.join(fixtureDir, 'reference-portfolio.json'), 'utf-8'),
+) as {
+  instruments: Array<Record<string, unknown>>;
+  transactions: Array<Record<string, unknown>>;
+  priceBars: Record<string, Array<{ date: string; close: string }>>;
+};
 
-const MODE = (process.argv.find((a) => a.startsWith('--mode='))
-  ?.split('=')[1] ?? 'seed') as 'seed' | 'reference';
-
-// ---------------------------------------------------------------------------
-// Types (matching API response shapes)
-// ---------------------------------------------------------------------------
-
-interface SnapshotResponse {
-  totalValue: string;
-  totalCostBasis: string;
-  unrealizedPnl: string;
-  realizedPnl: string;
-  holdings: Array<{
-    symbol: string;
-    instrumentId: string;
-    qty: string;
-    value: string;
-    costBasis: string;
-    unrealizedPnl: string;
-    allocation: string;
-    isEstimated: boolean;
+const expectedOutputs = JSON.parse(
+  fs.readFileSync(path.join(fixtureDir, 'expected-outputs.json'), 'utf-8'),
+) as {
+  checkpoints: Array<{
+    date: string;
+    dayIndex: number;
+    description: string;
+    expectedLotState: Record<
+      string,
+      Array<{
+        openedAt: string;
+        originalQty: string;
+        remainingQty: string;
+        costBasisPerShare: string;
+        costBasisRemaining: string;
+      }>
+    >;
+    expectedRealizedPnl: {
+      cumulative: string;
+      trades: Array<{
+        instrument: string;
+        sellDate: string;
+        qty: string;
+        proceeds: string;
+        costBasis: string;
+        realizedPnl: string;
+      }>;
+    };
+    expectedPortfolioValue: {
+      totalValue: string;
+      totalCostBasis: string;
+      unrealizedPnl: string;
+      realizedPnl: string;
+      holdings: Record<
+        string,
+        { qty: string; value: string; costBasis: string; isEstimated?: boolean }
+      >;
+    };
   }>;
-  window: {
-    startDate: string;
-    endDate: string;
-    startValue: string;
-    endValue: string;
-    changeAmount: string;
-    changePct: string;
+};
+
+// ---------------------------------------------------------------------------
+// Converters: fixture JSON -> typed objects
+// ---------------------------------------------------------------------------
+
+function toInstrument(raw: Record<string, unknown>): Instrument {
+  return {
+    id: raw['id'] as string,
+    symbol: raw['symbol'] as string,
+    name: raw['name'] as string,
+    type: raw['type'] as InstrumentType,
+    currency: raw['currency'] as string,
+    exchange: raw['exchange'] as string,
+    exchangeTz: raw['exchangeTz'] as string,
+    providerSymbolMap: (raw['providerSymbolMap'] ?? {}) as Record<string, string>,
+    firstBarDate: (raw['firstBarDate'] ?? null) as string | null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 }
 
-interface HoldingDetailResponse {
-  symbol: string;
-  name: string;
-  instrumentId: string;
-  totalQty: string;
-  markPrice: string;
-  marketValue: string;
-  totalCostBasis: string;
-  unrealizedPnl: string;
-  unrealizedPnlPct: string;
-  realizedPnl: string;
-  lots: Array<{
-    openedAt: string;
-    originalQty: string;
-    remainingQty: string;
-    price: string;
-    costBasisRemaining: string;
-  }>;
-  realizedTrades: Array<{
-    sellDate: string;
-    qty: string;
-    proceeds: string;
-    costBasis: string;
-    realizedPnl: string;
-    fees: string;
-  }>;
-  latestQuote: {
-    price: string;
-    asOf: string;
-    fetchedAt: string;
-    provider: string;
-  } | null;
+function toTransaction(raw: Record<string, unknown>): Transaction {
+  return {
+    id: raw['id'] as string,
+    instrumentId: raw['instrumentId'] as string,
+    type: raw['type'] as TransactionType,
+    quantity: toDecimal(raw['quantity'] as string),
+    price: toDecimal(raw['price'] as string),
+    fees: toDecimal(raw['fees'] as string),
+    tradeAt: new Date(raw['tradeAt'] as string),
+    notes: (raw['notes'] ?? null) as string | null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 }
 
-interface HoldingsListItem {
-  symbol: string;
-  name: string;
-  instrumentId: string;
-  qty: string;
-  price: string;
-  value: string;
-  costBasis: string;
-  unrealizedPnl: string;
-  unrealizedPnlPct: string;
-  allocation: string;
+// ---------------------------------------------------------------------------
+// Build typed data
+// ---------------------------------------------------------------------------
+
+const instruments: Instrument[] = refPortfolio.instruments.map(toInstrument);
+const allTransactions: Transaction[] = refPortfolio.transactions.map(toTransaction);
+
+const idToSymbol = new Map<string, string>();
+const symbolToId = new Map<string, string>();
+for (const inst of instruments) {
+  idToSymbol.set(inst.id, inst.symbol);
+  symbolToId.set(inst.symbol, inst.id);
+}
+
+function buildPriceLookup(): MockPriceLookup {
+  const bars: Record<string, Array<{ date: string; close: Decimal }>> = {};
+  for (const [instrumentId, rawBars] of Object.entries(refPortfolio.priceBars)) {
+    bars[instrumentId] = rawBars.map((b) => ({
+      date: b.date,
+      close: toDecimal(b.close),
+    }));
+  }
+  return new MockPriceLookup(bars);
+}
+
+const testCalendar: CalendarFns = {
+  isTradingDay(date: Date, _exchange: string): boolean {
+    const day = date.getUTCDay();
+    return day >= 1 && day <= 5;
+  },
+  getNextTradingDay(date: Date, _exchange: string): Date {
+    const next = new Date(date);
+    next.setUTCDate(next.getUTCDate() + 1);
+    while (next.getUTCDay() === 0 || next.getUTCDay() === 6) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+    return next;
+  },
+};
+
+function getTransactionsForInstrument(
+  symbol: string,
+  upToDate: string,
+): Transaction[] {
+  const instrumentId = symbolToId.get(symbol);
+  if (!instrumentId) return [];
+  const endOfDay = new Date(upToDate + 'T23:59:59.999Z');
+  return allTransactions
+    .filter((tx) => tx.instrumentId === instrumentId && tx.tradeAt <= endOfDay)
+    .sort((a, b) => a.tradeAt.getTime() - b.tradeAt.getTime());
+}
+
+// ---------------------------------------------------------------------------
+// Independent FIFO calculation (no analytics engine)
+// ---------------------------------------------------------------------------
+
+interface IndependentLot {
+  openedAt: string;
+  originalQty: Decimal;
+  remainingQty: Decimal;
+  costBasisPerShare: Decimal;
+  costBasisRemaining: Decimal;
+}
+
+interface IndependentResult {
+  lots: IndependentLot[];
+  realizedPnl: Decimal;
+}
+
+/**
+ * Independently compute FIFO lots and realized PnL from raw transactions.
+ * This duplicates the logic without using the analytics engine.
+ */
+function independentFIFO(transactions: Transaction[]): IndependentResult {
+  const lots: IndependentLot[] = [];
+  let totalRealizedPnl = ZERO;
+
+  const sorted = [...transactions].sort(
+    (a, b) => a.tradeAt.getTime() - b.tradeAt.getTime(),
+  );
+
+  for (const tx of sorted) {
+    if (tx.type === 'BUY') {
+      lots.push({
+        openedAt: tx.tradeAt.toISOString(),
+        originalQty: tx.quantity,
+        remainingQty: tx.quantity,
+        costBasisPerShare: tx.price,
+        costBasisRemaining: mul(tx.quantity, tx.price),
+      });
+    } else {
+      // SELL - FIFO from front
+      let remainingToSell = tx.quantity;
+      let lotIdx = 0;
+      while (remainingToSell.greaterThan(ZERO) && lotIdx < lots.length) {
+        const lot = lots[lotIdx]!;
+        const consumed = Decimal.min(remainingToSell, lot.remainingQty);
+        const proceeds = mul(consumed, tx.price);
+        const costBasis = mul(consumed, lot.costBasisPerShare);
+        totalRealizedPnl = add(totalRealizedPnl, sub(proceeds, costBasis));
+
+        lot.remainingQty = sub(lot.remainingQty, consumed);
+        lot.costBasisRemaining = sub(
+          lot.costBasisRemaining,
+          mul(consumed, lot.costBasisPerShare),
+        );
+        remainingToSell = sub(remainingToSell, consumed);
+
+        if (lot.remainingQty.isZero()) {
+          lots.splice(lotIdx, 1);
+        } else {
+          lotIdx++;
+        }
+      }
+    }
+  }
+
+  return { lots, realizedPnl: totalRealizedPnl };
+}
+
+/**
+ * Get the close price for an instrument on a date, with carry-forward.
+ */
+function getPrice(
+  instrumentId: string,
+  date: string,
+): { price: Decimal; isEstimated: boolean } | null {
+  const bars = refPortfolio.priceBars[instrumentId];
+  if (!bars || bars.length === 0) return null;
+
+  // Exact match
+  const exact = bars.find((b) => b.date === date);
+  if (exact) return { price: toDecimal(exact.close), isEstimated: false };
+
+  // Carry-forward: most recent bar on or before date
+  let best: { date: string; close: string } | undefined;
+  for (const bar of bars) {
+    if (bar.date <= date) {
+      best = bar;
+    } else {
+      break;
+    }
+  }
+  if (!best) return null;
+  return { price: toDecimal(best.close), isEstimated: true };
 }
 
 // ---------------------------------------------------------------------------
 // Test infrastructure
 // ---------------------------------------------------------------------------
 
-interface TestResult {
-  name: string;
-  passed: boolean;
-  details: string;
-}
+let totalChecks = 0;
+let passedChecks = 0;
+let failedChecks = 0;
+const failures: string[] = [];
 
-const results: TestResult[] = [];
-
-function pass(name: string, details: string = ''): void {
-  results.push({ name, passed: true, details });
-  console.log(`  ✓ ${name}${details ? ` — ${details}` : ''}`);
-}
-
-function fail(name: string, details: string): void {
-  results.push({ name, passed: false, details });
-  console.log(`  ✗ ${name} — ${details}`);
-}
-
-function assertEq(name: string, actual: string, expected: string): void {
+function check(label: string, actual: string, expected: string): void {
+  totalChecks++;
   if (actual === expected) {
-    pass(name, `${actual}`);
+    passedChecks++;
   } else {
-    fail(name, `expected "${expected}", got "${actual}"`);
+    failedChecks++;
+    const msg = `  FAIL: ${label} -- expected "${expected}", got "${actual}"`;
+    failures.push(msg);
+    console.log(msg);
   }
 }
 
-function assertDecimalEq(name: string, actual: string, expected: string): void {
-  const a = new Decimal(actual);
-  const b = new Decimal(expected);
-  if (a.equals(b)) {
-    pass(name, `${actual}`);
-  } else {
-    fail(name, `expected "${expected}", got "${actual}" (diff: ${a.minus(b).toString()})`);
-  }
-}
-
-function assertClose(name: string, actual: string, expected: string, tolerance: string = '0.01'): void {
-  const a = new Decimal(actual);
-  const b = new Decimal(expected);
-  const diff = a.minus(b).abs();
-  if (diff.lte(new Decimal(tolerance))) {
-    pass(name, `${actual} (within ${tolerance} of ${expected})`);
-  } else {
-    fail(name, `expected ~"${expected}", got "${actual}" (diff: ${diff.toString()}, tolerance: ${tolerance})`);
-  }
-}
-
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} for ${path}: ${await response.text()}`);
-  }
-  return response.json() as Promise<T>;
-}
-
-// ---------------------------------------------------------------------------
-// Seed data validation
-// ---------------------------------------------------------------------------
-
-async function validateSeedData(): Promise<void> {
-  console.log('\n=== Seed Data Cross-Validation ===\n');
-
-  // 1. Fetch portfolio snapshot
-  console.log('--- Portfolio Snapshot ---');
-  const snapshot = await fetchJson<SnapshotResponse>('/api/portfolio/snapshot?window=1M');
-
-  // Verify totalValue = sum of holdings values
-  const holdingsValueSum = snapshot.holdings.reduce(
-    (sum, h) => sum.plus(new Decimal(h.value)),
-    new Decimal(0),
-  );
-  assertDecimalEq(
-    'Snapshot totalValue = sum of holdings values',
-    snapshot.totalValue,
-    holdingsValueSum.toString(),
-  );
-
-  // Verify totalCostBasis = sum of holdings cost basis
-  const holdingsCostSum = snapshot.holdings.reduce(
-    (sum, h) => sum.plus(new Decimal(h.costBasis)),
-    new Decimal(0),
-  );
-  assertDecimalEq(
-    'Snapshot totalCostBasis = sum of holdings cost basis',
-    snapshot.totalCostBasis,
-    holdingsCostSum.toString(),
-  );
-
-  // Verify unrealizedPnl = totalValue - totalCostBasis
-  const expectedUnrealizedPnl = new Decimal(snapshot.totalValue).minus(new Decimal(snapshot.totalCostBasis));
-  assertDecimalEq(
-    'Snapshot unrealizedPnl = totalValue - totalCostBasis',
-    snapshot.unrealizedPnl,
-    expectedUnrealizedPnl.toString(),
-  );
-
-  // Verify allocations sum to ~100%
-  const allocationSum = snapshot.holdings.reduce(
-    (sum, h) => sum.plus(new Decimal(h.allocation)),
-    new Decimal(0),
-  );
-  assertClose(
-    'Holdings allocations sum to 100%',
-    allocationSum.toString(),
-    '100',
-    '0.5', // Allow 0.5% tolerance from rounding
-  );
-
-  // Verify each holding's allocation is correct
-  for (const h of snapshot.holdings.slice(0, 3)) {
-    const expectedAlloc = new Decimal(h.value)
-      .dividedBy(new Decimal(snapshot.totalValue))
-      .times(100)
-      .toFixed(2);
-    assertDecimalEq(
-      `${h.symbol} allocation = value/totalValue*100`,
-      h.allocation,
-      expectedAlloc,
-    );
-  }
-
-  // Verify window change math
-  const expectedChange = new Decimal(snapshot.window.endValue).minus(new Decimal(snapshot.window.startValue));
-  assertDecimalEq(
-    'Window changeAmount = endValue - startValue',
-    snapshot.window.changeAmount,
-    expectedChange.toString(),
-  );
-
-  // 2. Fetch holdings list
-  console.log('\n--- Holdings List ---');
-  const holdings = await fetchJson<HoldingsListItem[]>('/api/portfolio/holdings');
-
-  assertEq('Holdings count matches snapshot', String(holdings.length), String(snapshot.holdings.length));
-
-  // 3. Spot-check individual holdings (AAPL, MSFT, VTI)
-  const symbolsToCheck = ['AAPL', 'MSFT', 'VTI'];
-
-  for (const symbol of symbolsToCheck) {
-    console.log(`\n--- ${symbol} Holding Detail ---`);
-    const detail = await fetchJson<HoldingDetailResponse>(`/api/portfolio/holdings/${symbol}`);
-
-    // Verify marketValue = totalQty * markPrice
-    const expectedMarketValue = new Decimal(detail.totalQty).times(new Decimal(detail.markPrice));
-    assertDecimalEq(
-      `${symbol} marketValue = qty * markPrice`,
-      detail.marketValue,
-      expectedMarketValue.toString(),
-    );
-
-    // Verify totalCostBasis = sum of lot costBasisRemaining
-    const lotCostSum = detail.lots.reduce(
-      (sum, lot) => sum.plus(new Decimal(lot.costBasisRemaining)),
-      new Decimal(0),
-    );
-    assertDecimalEq(
-      `${symbol} totalCostBasis = sum of lot costs`,
-      detail.totalCostBasis,
-      lotCostSum.toString(),
-    );
-
-    // Verify totalQty = sum of lot remainingQty
-    const lotQtySum = detail.lots.reduce(
-      (sum, lot) => sum.plus(new Decimal(lot.remainingQty)),
-      new Decimal(0),
-    );
-    assertDecimalEq(
-      `${symbol} totalQty = sum of lot quantities`,
-      detail.totalQty,
-      lotQtySum.toString(),
-    );
-
-    // Verify unrealizedPnl = marketValue - totalCostBasis
-    const expectedUPnl = new Decimal(detail.marketValue).minus(new Decimal(detail.totalCostBasis));
-    assertDecimalEq(
-      `${symbol} unrealizedPnl = marketValue - costBasis`,
-      detail.unrealizedPnl,
-      expectedUPnl.toString(),
-    );
-
-    // Verify unrealizedPnlPct = unrealizedPnl / costBasis * 100
-    if (!new Decimal(detail.totalCostBasis).isZero()) {
-      const expectedPct = new Decimal(detail.unrealizedPnl)
-        .dividedBy(new Decimal(detail.totalCostBasis))
-        .times(100)
-        .toFixed(2);
-      assertDecimalEq(
-        `${symbol} unrealizedPnlPct = pnl/cost*100`,
-        detail.unrealizedPnlPct,
-        expectedPct,
-      );
-    }
-
-    // Verify each lot: costBasisRemaining = remainingQty * price
-    for (let i = 0; i < detail.lots.length; i++) {
-      const lot = detail.lots[i]!;
-      const expectedLotCost = new Decimal(lot.remainingQty).times(new Decimal(lot.price));
-      assertDecimalEq(
-        `${symbol} lot[${i}] costBasis = qty * price`,
-        lot.costBasisRemaining,
-        expectedLotCost.toString(),
-      );
-    }
-
-    // Verify realized PnL from trades
-    if (detail.realizedTrades.length > 0) {
-      for (let i = 0; i < detail.realizedTrades.length; i++) {
-        const trade = detail.realizedTrades[i]!;
-        const expectedRPnl = new Decimal(trade.proceeds)
-          .minus(new Decimal(trade.costBasis))
-          .minus(new Decimal(trade.fees));
-        assertDecimalEq(
-          `${symbol} trade[${i}] realizedPnl = proceeds - cost - fees`,
-          trade.realizedPnl,
-          expectedRPnl.toString(),
-        );
-      }
-
-      // Verify total realizedPnl = sum of trades
-      const tradePnlSum = detail.realizedTrades.reduce(
-        (sum, t) => sum.plus(new Decimal(t.realizedPnl)),
-        new Decimal(0),
-      );
-      assertDecimalEq(
-        `${symbol} total realizedPnl = sum of trade PnLs`,
-        detail.realizedPnl,
-        tradePnlSum.toString(),
-      );
-    }
-
-    // Verify markPrice matches latestQuote
-    if (detail.latestQuote) {
-      assertDecimalEq(
-        `${symbol} markPrice = latestQuote.price`,
-        detail.markPrice,
-        detail.latestQuote.price,
-      );
-    }
-  }
-
-  // 4. Cross-check holdings list vs holding details
-  console.log('\n--- Cross-Check: Holdings List vs Detail ---');
-  for (const symbol of symbolsToCheck) {
-    const listItem = holdings.find((h) => h.symbol === symbol);
-    const detail = await fetchJson<HoldingDetailResponse>(`/api/portfolio/holdings/${symbol}`);
-
-    if (listItem) {
-      assertDecimalEq(
-        `${symbol} list.qty = detail.totalQty`,
-        listItem.qty,
-        detail.totalQty,
-      );
-      assertDecimalEq(
-        `${symbol} list.costBasis = detail.totalCostBasis`,
-        listItem.costBasis,
-        detail.totalCostBasis,
-      );
-      assertDecimalEq(
-        `${symbol} list.unrealizedPnl = detail.unrealizedPnl`,
-        listItem.unrealizedPnl,
-        detail.unrealizedPnl,
-      );
-    } else {
-      fail(`${symbol} found in holdings list`, 'Not found');
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Reference portfolio notes (for documentation)
-// ---------------------------------------------------------------------------
-
-function printReferenceNotes(): void {
-  console.log('\n=== Reference Portfolio Notes ===\n');
-  console.log('The reference portfolio (data/test/reference-portfolio.json) contains');
-  console.log('6 instruments: AAPL, MSFT, VTI, QQQ, SPY, INTC with 25 transactions');
-  console.log('and hand-computed expected outputs at 6 checkpoint dates.\n');
-  console.log('The seed database contains 28 instruments with different transactions');
-  console.log('and prices. Only 4 symbols overlap (AAPL, MSFT, VTI, QQQ) but with');
-  console.log('different trade histories. SPY and INTC are not in the seed data.\n');
-  console.log('Full reference portfolio validation requires:');
-  console.log('  1. A clean database (or separate SQLite file)');
-  console.log('  2. Loading the 6 instruments via POST /api/instruments');
-  console.log('  3. Inserting price bars directly into SQLite');
-  console.log('  4. Creating 25 transactions via POST /api/transactions');
-  console.log('  5. Checking snapshot/holdings at all 6 checkpoint dates\n');
-  console.log('HOWEVER: The analytics engine already validates this in the unit tests.');
-  console.log('The 24 tests in packages/analytics/__tests__/reference-portfolio.test.ts');
-  console.log('verify all 6 checkpoints including:');
-  console.log('  - Lot state (FIFO ordering, quantities, cost basis)');
-  console.log('  - Realized PnL (per-trade and cumulative)');
-  console.log('  - Portfolio value snapshots (totalValue, costBasis, unrealizedPnl)');
-  console.log('  - Carry-forward pricing (INTC price gap, isEstimated flag)');
-  console.log('  - Backdated transaction rebuild correctness (SPY)');
-  console.log('  - Multi-lot sell decomposition (AAPL sell 40 = 2 trades)\n');
-  console.log('All 24 reference portfolio tests PASS, confirming the analytics engine');
-  console.log('produces correct results. The API routes are thin wrappers around the');
-  console.log('same processTransactions() and buildPortfolioValueSeries() functions.\n');
+function section(title: string): void {
+  console.log(`\n${'='.repeat(70)}`);
+  console.log(`  ${title}`);
+  console.log('='.repeat(70));
 }
 
 // ---------------------------------------------------------------------------
@@ -416,46 +309,354 @@ function printReferenceNotes(): void {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  console.log(`Cross-Validation Script — Mode: ${MODE}`);
-  console.log(`Base URL: ${BASE_URL}\n`);
+  console.log('STALKER Reference Portfolio Cross-Validation');
+  console.log(`Date: ${new Date().toISOString().split('T')[0]}`);
+  console.log(`Fixtures: ${fixtureDir}`);
+  console.log(`Instruments: ${instruments.length}, Transactions: ${allTransactions.length}`);
+  console.log(`Checkpoints: ${expectedOutputs.checkpoints.length}`);
 
-  try {
-    if (MODE === 'seed') {
-      await validateSeedData();
-      printReferenceNotes();
-    } else {
-      console.log('Reference portfolio mode requires a clean database.');
-      console.log('See the notes section for setup instructions.');
-      printReferenceNotes();
+  // =========================================================================
+  // Part A: Engine-based validation (using @stalker/analytics)
+  // =========================================================================
+  section('PART A: Analytics Engine Validation');
+
+  for (let cpIdx = 0; cpIdx < expectedOutputs.checkpoints.length; cpIdx++) {
+    const cp = expectedOutputs.checkpoints[cpIdx]!;
+    const cpLabel = `Checkpoint ${cpIdx + 1} (${cp.date})`;
+
+    console.log(`\n--- ${cpLabel}: ${cp.description} ---`);
+
+    // A1: Lot state per instrument
+    for (const [symbol, expectedLots] of Object.entries(cp.expectedLotState)) {
+      const txs = getTransactionsForInstrument(symbol, cp.date);
+      const result = processTransactions(txs);
+
+      check(
+        `${cpLabel} ${symbol} lot count`,
+        result.lots.length.toString(),
+        expectedLots.length.toString(),
+      );
+
+      for (let i = 0; i < expectedLots.length; i++) {
+        const lot = result.lots[i];
+        const expected = expectedLots[i]!;
+        if (lot) {
+          check(
+            `${cpLabel} ${symbol} lot[${i}] openedAt`,
+            lot.openedAt.toISOString(),
+            expected.openedAt,
+          );
+          check(
+            `${cpLabel} ${symbol} lot[${i}] remainingQty`,
+            lot.remainingQty.toString(),
+            expected.remainingQty,
+          );
+          check(
+            `${cpLabel} ${symbol} lot[${i}] costBasisPerShare`,
+            lot.price.toString(),
+            expected.costBasisPerShare,
+          );
+          check(
+            `${cpLabel} ${symbol} lot[${i}] costBasisRemaining`,
+            lot.costBasisRemaining.toString(),
+            expected.costBasisRemaining,
+          );
+        }
+      }
     }
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`\nFATAL ERROR: ${message}`);
-    process.exit(1);
+
+    // A2: Realized PnL per trade
+    for (const expectedTrade of cp.expectedRealizedPnl.trades) {
+      const txs = getTransactionsForInstrument(expectedTrade.instrument, cp.date);
+      const result = processTransactions(txs);
+
+      const matchingTrades = result.realizedTrades.filter(
+        (rt) =>
+          rt.sellDate.toISOString() === expectedTrade.sellDate &&
+          rt.qty.toString() === expectedTrade.qty,
+      );
+
+      if (matchingTrades.length > 0) {
+        const trade = matchingTrades[0]!;
+        check(
+          `${cpLabel} ${expectedTrade.instrument} trade (sell ${expectedTrade.qty} at ${expectedTrade.sellDate.split('T')[0]}) proceeds`,
+          trade.proceeds.toString(),
+          expectedTrade.proceeds,
+        );
+        check(
+          `${cpLabel} ${expectedTrade.instrument} trade (sell ${expectedTrade.qty} at ${expectedTrade.sellDate.split('T')[0]}) costBasis`,
+          trade.costBasis.toString(),
+          expectedTrade.costBasis,
+        );
+        check(
+          `${cpLabel} ${expectedTrade.instrument} trade (sell ${expectedTrade.qty} at ${expectedTrade.sellDate.split('T')[0]}) realizedPnl`,
+          trade.realizedPnl.toString(),
+          expectedTrade.realizedPnl,
+        );
+      } else {
+        failedChecks++;
+        totalChecks++;
+        const msg = `  FAIL: ${cpLabel} missing trade for ${expectedTrade.instrument} sell ${expectedTrade.qty} at ${expectedTrade.sellDate}`;
+        failures.push(msg);
+        console.log(msg);
+      }
+    }
+
+    // A3: Cumulative realized PnL across all instruments
+    const allSymbols = ['AAPL', 'MSFT', 'VTI', 'QQQ', 'SPY', 'INTC'];
+    let cumulativeRealized = ZERO;
+    for (const symbol of allSymbols) {
+      const txs = getTransactionsForInstrument(symbol, cp.date);
+      const result = processTransactions(txs);
+      cumulativeRealized = add(cumulativeRealized, computeRealizedPnL(result.realizedTrades));
+    }
+    check(
+      `${cpLabel} cumulative realized PnL`,
+      cumulativeRealized.toString(),
+      cp.expectedRealizedPnl.cumulative,
+    );
+
+    // A4: Portfolio value snapshot via buildPortfolioValueSeries
+    const priceLookup = buildPriceLookup();
+    const store = new MockSnapshotStore();
+
+    await buildPortfolioValueSeries({
+      transactions: allTransactions,
+      instruments,
+      priceLookup,
+      snapshotStore: store,
+      calendar: testCalendar,
+      startDate: '2026-01-02',
+      endDate: cp.date,
+    });
+
+    const snapshot = await store.getByDate(cp.date);
+    if (!snapshot) {
+      failedChecks++;
+      totalChecks++;
+      const msg = `  FAIL: ${cpLabel} -- no snapshot found for date ${cp.date}`;
+      failures.push(msg);
+      console.log(msg);
+    } else {
+      check(
+        `${cpLabel} snapshot totalValue`,
+        snapshot.totalValue.toString(),
+        cp.expectedPortfolioValue.totalValue,
+      );
+      check(
+        `${cpLabel} snapshot totalCostBasis`,
+        snapshot.totalCostBasis.toString(),
+        cp.expectedPortfolioValue.totalCostBasis,
+      );
+      check(
+        `${cpLabel} snapshot unrealizedPnl`,
+        snapshot.unrealizedPnl.toString(),
+        cp.expectedPortfolioValue.unrealizedPnl,
+      );
+      check(
+        `${cpLabel} snapshot realizedPnl`,
+        snapshot.realizedPnl.toString(),
+        cp.expectedPortfolioValue.realizedPnl,
+      );
+
+      const holdings = snapshot.holdingsJson as Record<string, HoldingSnapshotEntry>;
+      for (const [symbol, expected] of Object.entries(cp.expectedPortfolioValue.holdings)) {
+        if (!holdings[symbol]) {
+          failedChecks++;
+          totalChecks++;
+          const msg = `  FAIL: ${cpLabel} -- holding ${symbol} not found in snapshot`;
+          failures.push(msg);
+          console.log(msg);
+          continue;
+        }
+        check(
+          `${cpLabel} ${symbol} snapshot qty`,
+          holdings[symbol]!.qty.toString(),
+          expected.qty,
+        );
+        check(
+          `${cpLabel} ${symbol} snapshot value`,
+          holdings[symbol]!.value.toString(),
+          expected.value,
+        );
+        check(
+          `${cpLabel} ${symbol} snapshot costBasis`,
+          holdings[symbol]!.costBasis.toString(),
+          expected.costBasis,
+        );
+        if (expected.isEstimated) {
+          check(
+            `${cpLabel} ${symbol} snapshot isEstimated`,
+            String(holdings[symbol]!.isEstimated ?? false),
+            'true',
+          );
+        }
+      }
+    }
   }
 
-  // Summary
-  const passed = results.filter((r) => r.passed).length;
-  const failed = results.filter((r) => !r.passed).length;
-  const total = results.length;
+  // =========================================================================
+  // Part B: Fully Independent Validation (no analytics engine)
+  // =========================================================================
+  section('PART B: Independent Calculation Cross-Check');
 
-  console.log('\n=== Summary ===\n');
-  console.log(`Total checks: ${total}`);
-  console.log(`Passed: ${passed}`);
-  console.log(`Failed: ${failed}`);
+  for (let cpIdx = 0; cpIdx < expectedOutputs.checkpoints.length; cpIdx++) {
+    const cp = expectedOutputs.checkpoints[cpIdx]!;
+    const cpLabel = `Independent CP${cpIdx + 1} (${cp.date})`;
 
-  if (failed > 0) {
-    console.log('\nFailed checks:');
-    for (const r of results.filter((r) => !r.passed)) {
-      console.log(`  ✗ ${r.name}: ${r.details}`);
+    console.log(`\n--- ${cpLabel}: ${cp.description} ---`);
+
+    let indepTotalValue = ZERO;
+    let indepTotalCostBasis = ZERO;
+    let indepTotalRealized = ZERO;
+
+    for (const symbol of ['AAPL', 'MSFT', 'VTI', 'QQQ', 'SPY', 'INTC']) {
+      const instrumentId = symbolToId.get(symbol)!;
+      const txs = getTransactionsForInstrument(symbol, cp.date);
+      const result = independentFIFO(txs);
+
+      // Accumulate realized PnL
+      indepTotalRealized = add(indepTotalRealized, result.realizedPnl);
+
+      // Compute holding values
+      const totalQty = result.lots.reduce(
+        (sum, lot) => add(sum, lot.remainingQty),
+        ZERO,
+      );
+      const totalCostBasis = result.lots.reduce(
+        (sum, lot) => add(sum, lot.costBasisRemaining),
+        ZERO,
+      );
+
+      if (totalQty.isZero()) continue; // No position
+
+      const priceResult = getPrice(instrumentId, cp.date);
+      if (!priceResult) continue;
+
+      const holdingValue = mul(totalQty, priceResult.price);
+      indepTotalValue = add(indepTotalValue, holdingValue);
+      indepTotalCostBasis = add(indepTotalCostBasis, totalCostBasis);
+
+      // Compare per-holding values against expected
+      const expectedHolding = cp.expectedPortfolioValue.holdings[symbol];
+      if (expectedHolding) {
+        check(`${cpLabel} ${symbol} qty`, totalQty.toString(), expectedHolding.qty);
+        check(`${cpLabel} ${symbol} value`, holdingValue.toString(), expectedHolding.value);
+        check(`${cpLabel} ${symbol} costBasis`, totalCostBasis.toString(), expectedHolding.costBasis);
+      }
     }
+
+    // Compare portfolio totals
+    check(
+      `${cpLabel} totalValue`,
+      indepTotalValue.toString(),
+      cp.expectedPortfolioValue.totalValue,
+    );
+    check(
+      `${cpLabel} totalCostBasis`,
+      indepTotalCostBasis.toString(),
+      cp.expectedPortfolioValue.totalCostBasis,
+    );
+    check(
+      `${cpLabel} unrealizedPnl`,
+      sub(indepTotalValue, indepTotalCostBasis).toString(),
+      cp.expectedPortfolioValue.unrealizedPnl,
+    );
+    check(
+      `${cpLabel} cumulative realized PnL`,
+      indepTotalRealized.toString(),
+      cp.expectedRealizedPnl.cumulative,
+    );
+  }
+
+  // =========================================================================
+  // Part C: Engine vs Independent Cross-Check
+  // =========================================================================
+  section('PART C: Engine vs Independent Consistency');
+
+  for (let cpIdx = 0; cpIdx < expectedOutputs.checkpoints.length; cpIdx++) {
+    const cp = expectedOutputs.checkpoints[cpIdx]!;
+    const cpLabel = `Consistency CP${cpIdx + 1} (${cp.date})`;
+
+    console.log(`\n--- ${cpLabel} ---`);
+
+    // Engine results
+    const allSymbols = ['AAPL', 'MSFT', 'VTI', 'QQQ', 'SPY', 'INTC'];
+    let engineRealized = ZERO;
+    for (const symbol of allSymbols) {
+      const txs = getTransactionsForInstrument(symbol, cp.date);
+      const result = processTransactions(txs);
+      engineRealized = add(engineRealized, computeRealizedPnL(result.realizedTrades));
+    }
+
+    // Independent results
+    let indepRealized = ZERO;
+    for (const symbol of allSymbols) {
+      const txs = getTransactionsForInstrument(symbol, cp.date);
+      const result = independentFIFO(txs);
+      indepRealized = add(indepRealized, result.realizedPnl);
+    }
+
+    check(
+      `${cpLabel} engine vs independent realized PnL`,
+      engineRealized.toString(),
+      indepRealized.toString(),
+    );
+
+    // Compare lot states
+    for (const symbol of allSymbols) {
+      const txs = getTransactionsForInstrument(symbol, cp.date);
+      const engineResult = processTransactions(txs);
+      const indepResult = independentFIFO(txs);
+
+      check(
+        `${cpLabel} ${symbol} lot count engine vs independent`,
+        engineResult.lots.length.toString(),
+        indepResult.lots.length.toString(),
+      );
+
+      const minLots = Math.min(engineResult.lots.length, indepResult.lots.length);
+      for (let i = 0; i < minLots; i++) {
+        const eLot = engineResult.lots[i]!;
+        const iLot = indepResult.lots[i]!;
+        check(
+          `${cpLabel} ${symbol} lot[${i}] remainingQty engine vs independent`,
+          eLot.remainingQty.toString(),
+          iLot.remainingQty.toString(),
+        );
+        check(
+          `${cpLabel} ${symbol} lot[${i}] costBasisRemaining engine vs independent`,
+          eLot.costBasisRemaining.toString(),
+          iLot.costBasisRemaining.toString(),
+        );
+      }
+    }
+  }
+
+  // =========================================================================
+  // Summary
+  // =========================================================================
+  section('CROSS-VALIDATION SUMMARY');
+
+  console.log(`\nTotal checks:  ${totalChecks}`);
+  console.log(`Passed:        ${passedChecks}`);
+  console.log(`Failed:        ${failedChecks}`);
+
+  if (failures.length > 0) {
+    console.log('\nFailures:');
+    for (const f of failures) {
+      console.log(f);
+    }
+    console.log('\nRESULT: FAIL');
     process.exit(1);
   } else {
     console.log('\nAll checks passed.');
+    console.log('\nRESULT: PASS');
+    process.exit(0);
   }
 }
 
-main().catch((e: unknown) => {
-  console.error(e);
-  process.exit(1);
+main().catch((err: unknown) => {
+  console.error('Cross-validation error:', err);
+  process.exit(2);
 });

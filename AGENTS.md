@@ -1,7 +1,7 @@
 # AGENTS.md — STALKER Tech Stack & Design Decisions
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-23 (Post-Session 8)
+**Last Updated:** 2026-02-24 (Post-Session 9 — MVP Complete)
 
 ---
 
@@ -21,11 +21,11 @@
 | **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Local woff2 via next/font/local (Session 8 H-5) |
 | **Charting** | TradingView Lightweight Charts 5.1.0 | MIT license, v5 API: `chart.addSeries(AreaSeries, opts)` |
 | **Monorepo** | pnpm 10.30.1 workspaces | Native, fast, no Turborepo/Nx needed |
-| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 469 tests passing |
+| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 469+ tests passing |
 | **Validation** | Zod 4.3.6 | Input validation for API routes |
 | **IDs** | ULID 2.x | Sortable, no coordination, SQLite-friendly |
 | **Process manager** | concurrently 9.x | Runs Next.js + scheduler together via `pnpm dev` |
-| **LLM** | Anthropic Claude (primary), OpenAI (secondary) | Provider-agnostic adapter |
+| **LLM** | Anthropic Claude Sonnet 4.6 (primary, adaptive thinking), OpenAI (secondary) | Provider-agnostic adapter |
 
 ### Package Manager
 
@@ -144,7 +144,7 @@ AV_RPD=25
 LLM_PROVIDER=anthropic           # or "openai"
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
-LLM_MODEL=claude-sonnet-4-5-20250514
+LLM_MODEL=claude-sonnet-4-6
 
 # Scheduler
 POLL_INTERVAL_MARKET_HOURS=1800  # seconds (30 min)
