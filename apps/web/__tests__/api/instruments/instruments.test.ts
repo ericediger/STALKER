@@ -7,6 +7,7 @@ const { mockPrismaClient } = vi.hoisted(() => {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
       delete: vi.fn(),
     },
     transaction: {
@@ -15,6 +16,7 @@ const { mockPrismaClient } = vi.hoisted(() => {
     },
     priceBar: {
       deleteMany: vi.fn(),
+      createMany: vi.fn(),
     },
     latestQuote: {
       deleteMany: vi.fn(),
@@ -30,6 +32,14 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/snapshot-rebuild-helper', () => ({
   triggerSnapshotRebuild: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/lib/market-data-service', () => ({
+  getMarketDataService: vi.fn().mockReturnValue({
+    getHistory: vi.fn().mockResolvedValue([]),
+    searchSymbols: vi.fn().mockResolvedValue([]),
+    getQuote: vi.fn().mockResolvedValue(null),
+  }),
 }));
 
 import { POST, GET } from '@/app/api/instruments/route';
@@ -82,7 +92,7 @@ describe('Instrument CRUD API', () => {
       expect(res.status).toBe(201);
       expect(body.symbol).toBe('AAPL'); // uppercase-normalized
       expect(body.exchangeTz).toBe('America/New_York');
-      expect(body.providerSymbolMap).toEqual({ fmp: 'AAPL', stooq: 'aapl.us' });
+      expect(body.providerSymbolMap).toEqual({ fmp: 'AAPL', tiingo: 'AAPL' });
       expect(body.firstBarDate).toBeNull();
     });
 
