@@ -1,0 +1,135 @@
+[
+  {
+    "symbol": "VTI",
+    "name": "Vanguard Total Stock Market Index Fund",
+    "currency": "USD",
+    "exchangeFullName": "New York Stock Exchange Arca",
+    "exchange": "AMEX"
+  },
+  {
+    "symbol": "VTIX",
+    "name": "Virtuix Holdings Inc. Class A Common Stock",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ Global Market",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIQ",
+    "name": "VectoIQ Acquisition Corp. II",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ Capital Market",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIP",
+    "name": "Vanguard Short-Term Inflation-Protected Securities Index Fund",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ Global Market",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIVX",
+    "name": "Vanguard Target Retirement 2045 Fund",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIQW",
+    "name": "VectoIQ Acquisition Corp. II",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ Capital Market",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIQU",
+    "name": "VectoIQ Acquisition Corp. II",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ Capital Market",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTINX",
+    "name": "Vanguard Target Retirement Income Fund",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIFX",
+    "name": "Vanguard Total International Bond Index Fund Institutional Shares",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIAX",
+    "name": "Vanguard Total International Stock Index Fd Admiral",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "VTIAF",
+    "name": "FamiCord AG",
+    "currency": "USD",
+    "exchangeFullName": "Other OTC",
+    "exchange": "OTC"
+  },
+  {
+    "symbol": "VTI.WA",
+    "name": "Venture Inc. ASI S.A.",
+    "currency": "PLN",
+    "exchangeFullName": "Warsaw Stock Exchange",
+    "exchange": "WSE"
+  },
+  {
+    "symbol": "VTI.CN",
+    "name": "Valdor Technology International Inc.",
+    "currency": "CAD",
+    "exchangeFullName": "Canadian Securities Exchange",
+    "exchange": "CNQ"
+  },
+  {
+    "symbol": "VTI.AX",
+    "name": "Visioneering Technologies, Inc.",
+    "currency": "AUD",
+    "exchangeFullName": "Australian Securities Exchange",
+    "exchange": "ASX"
+  },
+  {
+    "symbol": "RVTI",
+    "name": "Rival Technologies, Inc.",
+    "currency": "USD",
+    "exchangeFullName": "Other OTC",
+    "exchange": "OTC"
+  },
+  {
+    "symbol": "OVTI",
+    "name": "OmniVision Technologies, Inc.",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "FVTI",
+    "name": "Fortune Valley Treasures, Inc.",
+    "currency": "USD",
+    "exchangeFullName": "Other OTC",
+    "exchange": "OTC"
+  },
+  {
+    "symbol": "AVTI",
+    "name": "Avitar, Inc.",
+    "currency": "USD",
+    "exchangeFullName": "Other OTC",
+    "exchange": "OTC"
+  },
+  {
+    "symbol": "JVTIX",
+    "name": "Janus Henderson Venture Fund",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ",
+    "exchange": "NASDAQ"
+  }
+]

@@ -1,19 +1,25 @@
 export interface RateLimiterConfig {
   requestsPerMinute: number;
+  requestsPerHour?: number;
   requestsPerDay: number;
 }
 
 /**
- * Token bucket rate limiter with per-minute (sliding window) and per-day buckets.
+ * Token bucket rate limiter with per-minute (sliding window), per-hour (sliding window),
+ * and per-day buckets.
  * Day bucket resets at midnight UTC.
- * Minute bucket uses a sliding window of call timestamps.
+ * Minute and hour buckets use sliding windows of call timestamps.
  */
 export class RateLimiter {
   private readonly maxPerMinute: number;
+  private readonly maxPerHour: number | null;
   private readonly maxPerDay: number;
 
   /** Timestamps (ms) of calls within the current sliding minute window */
   private minuteCallTimestamps: number[] = [];
+
+  /** Timestamps (ms) of calls within the current sliding hour window */
+  private hourCallTimestamps: number[] = [];
 
   /** Count of calls made in the current UTC day */
   private dayCallCount: number = 0;
@@ -23,20 +29,29 @@ export class RateLimiter {
 
   constructor(config: RateLimiterConfig) {
     this.maxPerMinute = config.requestsPerMinute;
+    this.maxPerHour = config.requestsPerHour ?? null;
     this.maxPerDay = config.requestsPerDay;
     this.currentDay = this.getUtcDayString(Date.now());
   }
 
   /**
-   * Returns true if both the per-minute and per-day buckets have capacity.
+   * Returns true if the per-minute, per-hour (if configured), and per-day buckets all have capacity.
    */
   canCall(): boolean {
     this.pruneMinuteWindow();
+    this.pruneHourWindow();
     this.resetDayIfNeeded();
-    return (
-      this.minuteCallTimestamps.length < this.maxPerMinute &&
-      this.dayCallCount < this.maxPerDay
-    );
+
+    if (this.minuteCallTimestamps.length >= this.maxPerMinute) {
+      return false;
+    }
+    if (this.maxPerHour !== null && this.hourCallTimestamps.length >= this.maxPerHour) {
+      return false;
+    }
+    if (this.dayCallCount >= this.maxPerDay) {
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -66,12 +81,15 @@ export class RateLimiter {
   }
 
   /**
-   * Records a call, consuming a token from both buckets.
+   * Records a call, consuming a token from all active buckets.
    */
   recordCall(): void {
     this.resetDayIfNeeded();
     const now = Date.now();
     this.minuteCallTimestamps.push(now);
+    if (this.maxPerHour !== null) {
+      this.hourCallTimestamps.push(now);
+    }
     this.dayCallCount++;
   }
 
@@ -91,12 +109,30 @@ export class RateLimiter {
     return Math.max(0, this.maxPerMinute - this.minuteCallTimestamps.length);
   }
 
+  /**
+   * Returns remaining calls allowed in the current hour window, or null if per-hour is not configured.
+   */
+  getRemainingHour(): number | null {
+    if (this.maxPerHour === null) {
+      return null;
+    }
+    this.pruneHourWindow();
+    return Math.max(0, this.maxPerHour - this.hourCallTimestamps.length);
+  }
+
   // --- Private helpers ---
 
   private pruneMinuteWindow(): void {
     const oneMinuteAgo = Date.now() - 60_000;
     this.minuteCallTimestamps = this.minuteCallTimestamps.filter(
       (ts) => ts > oneMinuteAgo
+    );
+  }
+
+  private pruneHourWindow(): void {
+    const oneHourAgo = Date.now() - 3_600_000;
+    this.hourCallTimestamps = this.hourCallTimestamps.filter(
+      (ts) => ts > oneHourAgo
     );
   }
 
@@ -125,6 +161,17 @@ export class RateLimiter {
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
       );
       return tomorrow.getTime() - now.getTime();
+    }
+
+    // If hour bucket is exhausted, wait for the oldest call in the hour window to expire
+    if (this.maxPerHour !== null) {
+      this.pruneHourWindow();
+      if (this.hourCallTimestamps.length >= this.maxPerHour) {
+        const oldest = this.hourCallTimestamps[0];
+        if (oldest !== undefined) {
+          return oldest + 3_600_000 - Date.now() + 1;
+        }
+      }
     }
 
     // If minute bucket is exhausted, wait for the oldest call to expire

@@ -5,12 +5,15 @@ export interface SchedulerConfig {
   databaseUrl: string;
   fmpApiKey: string;
   alphaVantageApiKey: string | undefined;
+  tiingoApiKey: string | undefined;
   pollIntervalSeconds: number;
   postCloseDelaySeconds: number;
   fmpRpm: number;
   fmpRpd: number;
   avRpm: number;
   avRpd: number;
+  tiingoRph: number;
+  tiingoRpd: number;
 }
 
 /**
@@ -49,18 +52,23 @@ export function loadConfig(): SchedulerConfig {
   const fmpRpd = parseIntEnv('FMP_RPD', 250);
   const avRpm = parseIntEnv('AV_RPM', 5);
   const avRpd = parseIntEnv('AV_RPD', 25);
+  const tiingoRph = parseIntEnv('TIINGO_RPH', 50);
+  const tiingoRpd = parseIntEnv('TIINGO_RPD', 1000);
 
   return {
     // Non-null assertions are safe here — we checked above and would have thrown
     databaseUrl: databaseUrl!,
     fmpApiKey: fmpApiKey!,
     alphaVantageApiKey: process.env['ALPHA_VANTAGE_API_KEY'],
+    tiingoApiKey: process.env['TIINGO_API_KEY'],
     pollIntervalSeconds,
     postCloseDelaySeconds,
     fmpRpm,
     fmpRpd,
     avRpm,
     avRpd,
+    tiingoRph,
+    tiingoRpd,
   };
 }
 

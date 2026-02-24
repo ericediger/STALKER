@@ -23,7 +23,7 @@ export interface MarketDataServiceConfig {
   primaryProvider: MarketDataProvider;
   /** Secondary/backup quote + search provider (typically Alpha Vantage) */
   secondaryProvider: MarketDataProvider;
-  /** History provider (typically Stooq) */
+  /** History provider (Tiingo — sole provider, no fallback) */
   historyProvider: MarketDataProvider;
   /** Prisma client for LatestQuote cache operations (optional -- if not provided, caching is disabled) */
   prisma?: PrismaClientForCache;
@@ -38,7 +38,7 @@ interface ProviderWithLimiter {
  * MarketDataService wraps multiple providers with rate limiting and a fallback chain.
  *
  * Quote path: primary (FMP) -> cache check -> secondary (Alpha Vantage) -> null
- * History path: historyProvider (Stooq) -> primary (FMP)
+ * History path: historyProvider (Tiingo) — no fallback (FMP free tier has no history)
  * Search path: primary (FMP) -> secondary (Alpha Vantage)
  */
 export class MarketDataService {
@@ -52,6 +52,7 @@ export class MarketDataService {
       provider: config.primaryProvider,
       limiter: new RateLimiter({
         requestsPerMinute: config.primaryProvider.getLimits().requestsPerMinute,
+        requestsPerHour: config.primaryProvider.getLimits().requestsPerHour,
         requestsPerDay: config.primaryProvider.getLimits().requestsPerDay,
       }),
     };
@@ -60,6 +61,7 @@ export class MarketDataService {
       provider: config.secondaryProvider,
       limiter: new RateLimiter({
         requestsPerMinute: config.secondaryProvider.getLimits().requestsPerMinute,
+        requestsPerHour: config.secondaryProvider.getLimits().requestsPerHour,
         requestsPerDay: config.secondaryProvider.getLimits().requestsPerDay,
       }),
     };
@@ -68,6 +70,7 @@ export class MarketDataService {
       provider: config.historyProvider,
       limiter: new RateLimiter({
         requestsPerMinute: config.historyProvider.getLimits().requestsPerMinute,
+        requestsPerHour: config.historyProvider.getLimits().requestsPerHour,
         requestsPerDay: config.historyProvider.getLimits().requestsPerDay,
       }),
     };
@@ -112,9 +115,8 @@ export class MarketDataService {
   }
 
   /**
-   * Get historical price bars for an instrument using the fallback chain:
-   * 1. Try history provider (Stooq)
-   * 2. If fail, try primary provider (FMP)
+   * Get historical price bars for an instrument.
+   * Uses Tiingo as the sole history provider (FMP free tier has no history support).
    */
   async getHistory(
     instrument: Instrument,
@@ -122,7 +124,6 @@ export class MarketDataService {
     end: Date,
     resolution: Resolution = '1D'
   ): Promise<PriceBar[]> {
-    // Try history provider (Stooq)
     const historySymbol = getProviderSymbol(instrument, this.history.provider.name);
     const historyBars = await this.tryGetHistory(
       this.history,
@@ -133,19 +134,6 @@ export class MarketDataService {
     );
     if (historyBars && historyBars.length > 0) {
       return historyBars.map((bar) => ({ ...bar, instrumentId: instrument.id }));
-    }
-
-    // Fallback to primary (FMP)
-    const primarySymbol = getProviderSymbol(instrument, this.primary.provider.name);
-    const primaryBars = await this.tryGetHistory(
-      this.primary,
-      primarySymbol,
-      start,
-      end,
-      resolution
-    );
-    if (primaryBars && primaryBars.length > 0) {
-      return primaryBars.map((bar) => ({ ...bar, instrumentId: instrument.id }));
     }
 
     return [];

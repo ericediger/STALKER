@@ -148,6 +148,7 @@ export interface SymbolSearchResult {
 
 export interface ProviderLimits {
   requestsPerMinute: number;
+  requestsPerHour?: number;
   requestsPerDay: number;
   supportsIntraday: boolean;
   quoteDelayMinutes: number;

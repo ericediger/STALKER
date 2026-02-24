@@ -5,14 +5,23 @@ import { fetchWithTimeout } from '../fetch-with-timeout.js';
 
 const FMP_BASE_URL = 'https://financialmodelingprep.com';
 
+/**
+ * FMP /stable/ API search response item.
+ * Migrated from dead /api/v3/ in Session 11.
+ */
 interface FmpSearchItem {
   symbol?: string;
   name?: string;
   currency?: string;
-  stockExchange?: string;
-  exchangeShortName?: string;
+  exchangeFullName?: string;
+  exchange?: string;
 }
 
+/**
+ * FMP /stable/ API quote response item.
+ * Key changes from v3: `changePercentage` (not `changesPercentage`),
+ * all numeric fields are JSON numbers (not strings).
+ */
 interface FmpQuoteItem {
   symbol?: string;
   price?: number;
@@ -21,29 +30,13 @@ interface FmpQuoteItem {
   open?: number;
   previousClose?: number;
   change?: number;
-  changesPercentage?: number;
+  changePercentage?: number;
   dayLow?: number;
   dayHigh?: number;
   yearHigh?: number;
   yearLow?: number;
   volume?: number;
-  avgVolume?: number;
   exchange?: string;
-}
-
-interface FmpHistoryItem {
-  date?: string;
-  open?: number;
-  high?: number;
-  low?: number;
-  close?: number;
-  adjClose?: number;
-  volume?: number;
-}
-
-interface FmpHistoryResponse {
-  symbol?: string;
-  historical?: FmpHistoryItem[];
 }
 
 function getApiKey(): string {
@@ -69,7 +62,7 @@ export class FmpProvider implements MarketDataProvider {
 
   async searchSymbols(query: string): Promise<SymbolSearchResult[]> {
     const apiKey = getApiKey();
-    const url = `${FMP_BASE_URL}/api/v3/search?query=${encodeURIComponent(query)}&apikey=${apiKey}`;
+    const url = `${FMP_BASE_URL}/stable/search-symbol?query=${encodeURIComponent(query)}&apikey=${apiKey}`;
 
     const response = await this.fetchWithErrorHandling(url);
     const data: unknown = await response.json();
@@ -82,14 +75,14 @@ export class FmpProvider implements MarketDataProvider {
       symbol: item.symbol ?? '',
       name: item.name ?? '',
       type: 'STOCK',
-      exchange: item.exchangeShortName ?? item.stockExchange ?? '',
+      exchange: item.exchange ?? '',
       providerSymbol: item.symbol ?? '',
     }));
   }
 
   async getQuote(symbol: string): Promise<Quote> {
     const apiKey = getApiKey();
-    const url = `${FMP_BASE_URL}/api/v3/quote/${encodeURIComponent(symbol)}?apikey=${apiKey}`;
+    const url = `${FMP_BASE_URL}/stable/quote?symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
 
     const response = await this.fetchWithErrorHandling(url);
     const data: unknown = await response.json();
@@ -104,6 +97,7 @@ export class FmpProvider implements MarketDataProvider {
       throw new ProviderError(`Missing price in FMP quote response for: ${symbol}`, 'PARSE_ERROR', this.name);
     }
 
+    // CRITICAL: price is a JSON number — convert via String to avoid float contamination
     return {
       symbol: item.symbol ?? symbol,
       price: toDecimal(String(item.price)),
@@ -112,38 +106,21 @@ export class FmpProvider implements MarketDataProvider {
     };
   }
 
+  /**
+   * FMP free tier does not support historical data (premium-only since Aug 2025).
+   * Always throws — callers should use Tiingo for history instead.
+   */
   async getHistory(
-    symbol: string,
-    start: Date,
-    end: Date,
+    _symbol: string,
+    _start: Date,
+    _end: Date,
     _resolution: Resolution
   ): Promise<PriceBar[]> {
-    const apiKey = getApiKey();
-    const startStr = formatDate(start);
-    const endStr = formatDate(end);
-    const url = `${FMP_BASE_URL}/api/v3/historical-price-full/${encodeURIComponent(symbol)}?from=${startStr}&to=${endStr}&apikey=${apiKey}`;
-
-    const response = await this.fetchWithErrorHandling(url);
-    const data: unknown = await response.json();
-
-    const historyResponse = data as FmpHistoryResponse;
-    if (!historyResponse.historical || !Array.isArray(historyResponse.historical)) {
-      throw new ProviderError(`No history data for symbol: ${symbol}`, 'NOT_FOUND', this.name);
-    }
-
-    return historyResponse.historical.map((item) => ({
-      id: 0, // Will be assigned by database on insert
-      instrumentId: '', // Caller must set this
-      provider: this.name,
-      resolution: '1D' as Resolution,
-      date: item.date ?? '',
-      time: null,
-      open: toDecimal(String(item.open ?? 0)),
-      high: toDecimal(String(item.high ?? 0)),
-      low: toDecimal(String(item.low ?? 0)),
-      close: toDecimal(String(item.close ?? 0)),
-      volume: item.volume ?? null,
-    }));
+    throw new ProviderError(
+      'FMP free tier does not support historical data. Use Tiingo for history.',
+      'UNKNOWN',
+      this.name
+    );
   }
 
   getLimits(): ProviderLimits {
@@ -178,11 +155,4 @@ export class FmpProvider implements MarketDataProvider {
 
     return response;
   }
-}
-
-function formatDate(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

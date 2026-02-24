@@ -97,7 +97,7 @@ describe('MarketDataService', () => {
 
     primaryProvider = createMockProvider('fmp');
     secondaryProvider = createMockProvider('alpha-vantage');
-    historyProvider = createMockProvider('stooq');
+    historyProvider = createMockProvider('tiingo');
     mockPrisma = createMockPrisma();
   });
 
@@ -207,30 +207,9 @@ describe('MarketDataService', () => {
       expect(result[0]?.instrumentId).toBe('inst-AAPL');
     });
 
-    it('falls back to primary when history provider fails', async () => {
+    it('returns empty array when history provider fails (no FMP fallback)', async () => {
       (historyProvider.getHistory as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new ProviderError('Network error', 'NETWORK_ERROR', 'stooq')
-      );
-
-      const bars = [makePriceBar('2025-01-02')];
-      (primaryProvider.getHistory as ReturnType<typeof vi.fn>).mockResolvedValueOnce(bars);
-
-      const service = createService();
-      const result = await service.getHistory(
-        makeInstrument('AAPL'),
-        new Date('2025-01-01'),
-        new Date('2025-01-31')
-      );
-
-      expect(result).toHaveLength(1);
-    });
-
-    it('returns empty array when all providers fail', async () => {
-      (historyProvider.getHistory as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new ProviderError('Network error', 'NETWORK_ERROR', 'stooq')
-      );
-      (primaryProvider.getHistory as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new ProviderError('Rate limited', 'RATE_LIMITED', 'fmp')
+        new ProviderError('Network error', 'NETWORK_ERROR', 'tiingo')
       );
 
       const service = createService();

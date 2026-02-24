@@ -3,7 +3,6 @@ import { FmpProvider } from '../src/providers/fmp.js';
 import { ProviderError } from '../src/types.js';
 import fmpSearchFixture from './fixtures/fmp-search.json';
 import fmpQuoteFixture from './fixtures/fmp-quote.json';
-import fmpHistoryFixture from './fixtures/fmp-history.json';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -33,7 +32,7 @@ describe('FmpProvider', () => {
   });
 
   describe('searchSymbols', () => {
-    it('returns mapped search results from FMP', async () => {
+    it('returns mapped search results from FMP /stable/ API', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(fmpSearchFixture));
 
       const results = await provider.searchSymbols('AAPL');
@@ -42,7 +41,19 @@ describe('FmpProvider', () => {
       expect(results[0]?.symbol).toBe('AAPL');
       expect(results[0]?.name).toBe('Apple Inc.');
       expect(results[0]?.exchange).toBe('NASDAQ');
+      expect(results[0]?.type).toBe('STOCK');
       expect(results[1]?.symbol).toBe('AAPD');
+    });
+
+    it('uses /stable/search-symbol endpoint', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(fmpSearchFixture));
+
+      await provider.searchSymbols('AAPL');
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain('/stable/search-symbol');
+      expect(calledUrl).toContain('query=AAPL');
+      expect(calledUrl).not.toContain('/api/v3/');
     });
 
     it('throws PARSE_ERROR for non-array response', async () => {
@@ -59,14 +70,36 @@ describe('FmpProvider', () => {
   });
 
   describe('getQuote', () => {
-    it('returns a quote with Decimal price', async () => {
+    it('returns a quote with Decimal price from /stable/ API', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse(fmpQuoteFixture));
 
       const quote = await provider.getQuote('AAPL');
 
       expect(quote.symbol).toBe('AAPL');
-      expect(quote.price.toString()).toBe('185.92');
+      expect(quote.price.toString()).toBe('272.11');
       expect(quote.provider).toBe('fmp');
+    });
+
+    it('uses /stable/quote endpoint with symbol as query param', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse(fmpQuoteFixture));
+
+      await provider.getQuote('AAPL');
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain('/stable/quote');
+      expect(calledUrl).toContain('symbol=AAPL');
+      expect(calledUrl).not.toContain('/api/v3/');
+    });
+
+    it('handles integer price (no decimal point) correctly', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse([{
+        symbol: 'TEST',
+        price: 268,
+        timestamp: 1771965875,
+      }]));
+
+      const quote = await provider.getQuote('TEST');
+      expect(quote.price.toString()).toBe('268');
     });
 
     it('throws NOT_FOUND for empty array response', async () => {
@@ -125,28 +158,10 @@ describe('FmpProvider', () => {
   });
 
   describe('getHistory', () => {
-    it('returns price bars with Decimal values', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse(fmpHistoryFixture));
-
-      const bars = await provider.getHistory('AAPL', new Date('2025-01-01'), new Date('2025-01-31'), '1D');
-
-      expect(bars).toHaveLength(2);
-      expect(bars[0]?.date).toBe('2025-01-03');
-      expect(bars[0]?.close.toString()).toBe('185.92');
-      expect(bars[0]?.open.toString()).toBe('184.15');
-      expect(bars[0]?.high.toString()).toBe('186.74');
-      expect(bars[0]?.low.toString()).toBe('183.09');
-      expect(bars[0]?.volume).toBe(46234500);
-      expect(bars[0]?.provider).toBe('fmp');
-      expect(bars[0]?.resolution).toBe('1D');
-    });
-
-    it('throws NOT_FOUND when no historical data', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ symbol: 'AAPL' }));
-
+    it('throws because FMP free tier does not support historical data', async () => {
       await expect(
         provider.getHistory('AAPL', new Date('2025-01-01'), new Date('2025-01-31'), '1D')
-      ).rejects.toThrow(ProviderError);
+      ).rejects.toThrow('FMP free tier does not support historical data');
     });
   });
 

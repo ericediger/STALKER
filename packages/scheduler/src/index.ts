@@ -3,7 +3,7 @@ import type { Instrument, InstrumentType } from '@stalker/shared';
 import {
   MarketDataService,
   FmpProvider,
-  StooqProvider,
+  TiingoProvider,
   AlphaVantageProvider,
 } from '@stalker/market-data';
 import { loadConfig } from './config.js';
@@ -62,13 +62,13 @@ async function main(): Promise<void> {
   // 3. Initialize MarketDataService with real providers
   // Providers read API keys from process.env (already loaded by dotenv in loadConfig)
   const fmpProvider = new FmpProvider();
-  const stooqProvider = new StooqProvider();
+  const tiingoProvider = new TiingoProvider();
   const alphaVantageProvider = new AlphaVantageProvider();
 
   const marketDataService = new MarketDataService({
     primaryProvider: fmpProvider,
     secondaryProvider: alphaVantageProvider,
-    historyProvider: stooqProvider,
+    historyProvider: tiingoProvider,
     prisma,
   });
 
