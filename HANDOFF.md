@@ -1,13 +1,13 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-24 (Post-Session 11)
-**Last Session:** Session 11 — Provider Integration Testing
+**Last Updated:** 2026-02-24 (Post-Session 12)
+**Last Session:** Session 12 — API Wiring + Pipeline Soak
 
 ---
 
 ## Current State
 
-Session 11 migrated all market data providers to work with real APIs. FMP was migrated from dead `/api/v3/` endpoints to the `/stable/` API. Stooq was replaced by a new Tiingo provider for historical daily bars. The provider chain was rewired, all mock fixtures updated to match real response shapes, and a per-hour rate limit bucket was added for Tiingo.
+Session 12 closed the integration gap between Session 11's provider layer and the API routes. All three remaining stubs (search, refresh, instrument backfill) are now wired to live providers via a MarketDataService singleton. Verified with live API calls: FMP search returns real results, manual refresh updates LatestQuote, and instrument creation triggers automatic Tiingo historical backfill (~500 daily bars per instrument). 72 new tests added covering rate limiter per-hour buckets, Tiingo rate limit regression, decimal precision round-trips, fallback chain behavior, backfill data quality, symbol mapping, and MarketDataService integration.
 
 ### What Exists
 
@@ -15,7 +15,7 @@ Session 11 migrated all market data providers to work with real APIs. FMP was mi
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined, database seeded with 28 instruments
-- Vitest 3.2.4 — **526 tests** passing across **43 test files**
+- Vitest 3.2.4 — **598 tests** passing across **50 test files**
 - Next.js 15.5.12 App Router with all API routes + all UI pages (including advisor)
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
@@ -35,28 +35,26 @@ Session 11 migrated all market data providers to work with real APIs. FMP was mi
   - buildPortfolioValueSeries, rebuildSnapshotsFrom, queryPortfolioWindow
 - `@stalker/market-data` — Complete:
   - MarketCalendar, 3 active providers (FMP, Tiingo, Alpha Vantage), rate limiter (per-min + per-hour + per-day), fallback chain, cache
+  - MarketDataService with singleton factory (`apps/web/src/lib/market-data-service.ts`)
   - Stooq deprecated (file kept for reference, not in active chain)
 - `@stalker/scheduler` — Complete:
   - Config loader (with Tiingo env vars), budget check, poller, graceful shutdown
 
-**Session 11 Provider Integration:**
-- **FMP `/stable/` migration:** Search via `/stable/search-symbol`, quotes via `/stable/quote`. `getHistory()` disabled (premium-only).
-- **TiingoProvider (new):** Historical daily bars via `/tiingo/daily/{sym}/prices`, quotes via `/iex/{sym}`. Uses adjusted prices (adjClose/adjOpen/adjHigh/adjLow). Safe text-first JSON parsing for rate limit detection.
-- **Provider chain:** FMP (search + quotes) → Alpha Vantage (backup quotes) → Tiingo (sole history provider)
-- **Rate limiter:** Added per-hour sliding window bucket for Tiingo (50 req/hr default)
-- **Decimal safety:** All JSON numbers from FMP/Tiingo convert via `toDecimal(String(value))` — no `parseFloat`/`Number()` in financial paths
-- **Symbol mapping:** Tiingo uses hyphens (BRK-B), FMP uses dots (BRK.B) — `providerSymbolMap` handles this
-- **Mock fixtures:** All updated to match real `/stable/` and Tiingo response shapes
-- **Smoke test data:** Real API responses archived in `data/test/smoke-responses/`
+**Session 12 API Wiring (NEW):**
+- **`/api/market/search`** — Live FMP search via `MarketDataService.searchSymbols()`. Returns real results from `/stable/search-symbol`.
+- **`/api/market/refresh`** — Iterates all instruments, calls `MarketDataService.getQuote()` per instrument, auto-upserts LatestQuote. Returns `{ refreshed, failed, rateLimited }`.
+- **Instrument backfill** — `POST /api/instruments` now triggers Tiingo historical backfill automatically. Fetches ~2 years of daily bars via `MarketDataService.getHistory()`, bulk inserts into PriceBar, sets `firstBarDate`. Fire-and-forget pattern (response returns immediately, backfill runs async).
+- **MarketDataService singleton** — `getMarketDataService()` factory at `apps/web/src/lib/market-data-service.ts`. One instance, all providers initialized from env vars, Prisma client for LatestQuote caching.
+- **providerSymbolMap updated** — Instrument creation now maps `tiingo` (not `stooq`). Tiingo uses hyphens (BRK-B), FMP uses dots (BRK.B).
 
-**API Layer (Sessions 4–11):**
-- **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete
+**API Layer (Sessions 4–12):**
+- **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete, **automatic Tiingo backfill on creation**
 - **Transaction CRUD:** POST/GET/GET[id]/PUT/DELETE with sell validation via `validateTransactionSet()`
 - **Bulk transactions:** POST /api/transactions/bulk — tab-separated batch with all-or-none sell validation (AD-S10c)
 - **Portfolio endpoints:** snapshot (read-only, AD-S10b), rebuild (explicit POST), timeseries, holdings (allocation %), holdings/[symbol] (lot detail)
-- **Market endpoints:** quote (cached), history (price bars), search (stub), refresh (stub), status (health summary)
+- **Market endpoints:** quote (cached), history (price bars), **search (live FMP)**, **refresh (live multi-provider)**, status (health summary)
 - **Prisma interface implementations:** PrismaPriceLookup (carry-forward), PrismaSnapshotStore (Decimal serialization, accepts tx client)
-- **Shared utilities:** errors.ts (apiError factory), Zod validators, prisma singleton
+- **Shared utilities:** errors.ts (apiError factory), Zod validators, prisma singleton, **market-data-service singleton**
 
 **Reference Portfolio Fixtures** (`data/test/`):
 - `reference-portfolio.json` — 6 instruments, 25 transactions, 56 trading days of mock prices
@@ -64,24 +62,21 @@ Session 11 migrated all market data providers to work with real APIs. FMP was mi
 - 24 fixture-based validation tests + 3 cross-validation wrapper tests (749 sub-checks)
 - `provider-smoke-results.md` — Phase 0 smoke test findings with exact response shapes
 - `smoke-responses/` — Raw API response JSON files from live providers
+- **`soak-instruments.json`** — 15 real instruments for pipeline soak testing
+- **Backfill quality, symbol mapping, MarketDataService integration tests** (47 tests)
 
 ### What Does Not Exist Yet
 
-- Historical price backfill in instrument creation (stubbed — providers now wired, needs API route integration)
-- Manual quote refresh (stubbed — providers now wired, needs API route integration)
-- Symbol search proxy (stubbed — FMP search now works, needs API route integration)
-
-### Known Stubs (Ready to Wire — Providers Are Now Live)
-
-| Stub | Location | What's Needed |
-|------|----------|---------------|
-| Historical backfill on instrument create | `apps/web/src/app/api/instruments/route.ts` | Instantiate MarketDataService with TiingoProvider, call `getHistory()`, write PriceBars |
-| Symbol search | `apps/web/src/app/api/market/search/route.ts` | Instantiate MarketDataService with FmpProvider, call `searchSymbols()` |
-| Manual quote refresh | `apps/web/src/app/api/market/refresh/route.ts` | Instantiate MarketDataService, call `getQuote()` per instrument |
+- Full E2E smoke test with 15 real instruments added (verified with single CRWD instrument — 501 bars)
+- Holiday/half-day market calendar
+- Advisor context window management
+- Responsive refinements for tablet/mobile
 
 ### Known Limitations
 
-See `KNOWN-LIMITATIONS.md` for the current list. W-3, W-4, W-5, W-8 resolved in Session 10.
+See `KNOWN-LIMITATIONS.md` for the current list (KL-1 through KL-6). Notable:
+- KL-5: Single provider dependency for historical bars (Tiingo only, no fallback)
+- KL-6: Rate limiter is in-process only (scheduler and Next.js have separate state)
 
 ---
 
@@ -89,14 +84,14 @@ See `KNOWN-LIMITATIONS.md` for the current list. W-3, W-4, W-5, W-8 resolved in 
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 526 |
-| Test files | 43 |
+| Test count (total) | 598 |
+| Test files | 50 |
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (all implemented) |
-| API endpoints | 21 (20 implemented + 2 stubs: search, refresh) |
+| API endpoints | 22 (all implemented — no stubs remaining) |
 | UI components | 48 |
 | Data hooks | 12 |
-| Utility modules | 7 |
+| Utility modules | 8 |
 | UI pages | 6 of 6 (all data-wired including advisor) |
 | Prisma tables | 7 of 7 |
 | Market data providers | 3 active (FMP, Tiingo, AV) + 1 deprecated (Stooq) |
@@ -109,14 +104,13 @@ See `KNOWN-LIMITATIONS.md` for the current list. W-3, W-4, W-5, W-8 resolved in 
 
 ---
 
-## Architecture Decisions (Session 11)
+## Architecture Decisions (Session 12)
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| AD-S11-1 | Tiingo replaces Stooq as historical daily bars provider | Stooq has no formal API, IP-rate-limiting, CAPTCHA risk. Tiingo provides REST API with JSON, 30+ years of data, documented limits. |
-| AD-S11-2 | FMP role reduced to search + quotes only | Free tier no longer includes historical EOD data after Aug 2025 cutoff. |
-| AD-S11-3 | Use Tiingo adjusted prices as default | Adjusted prices account for splits and dividends. Matches user expectations for historical portfolio value. |
-| AD-S11-4 | FMP price numbers convert via String intermediary | `new Decimal(272.11)` risks float contamination. `toDecimal(String(272.11))` = `"272.11"` is exact. |
+| AD-S12a | `getMarketDataService()` singleton factory | One instance, all providers, initialized from env vars. Avoids constructing providers on every request. |
+| AD-S12b | Synchronous backfill within instrument creation request | Single user, <500 bars for 2 years, sub-5s typical. Fire-and-forget pattern — response returns immediately, backfill completes async. |
+| AD-S12c | providerSymbolMap uses `tiingo` key (replaced `stooq`) | Tiingo is the active history provider. Symbol mapping: dots→hyphens (BRK.B→BRK-B). |
 
 ---
 
@@ -124,7 +118,7 @@ See `KNOWN-LIMITATIONS.md` for the current list. W-3, W-4, W-5, W-8 resolved in 
 
 1. ~~Bulk transaction paste input~~ — Completed (Session 10)
 2. ~~Provider integration testing~~ — Completed (Session 11)
-3. **Wire stubs to live providers** — Symbol search, manual quote refresh, historical price backfill (providers ready, API routes still stubbed)
+3. ~~Wire stubs to live providers~~ — Completed (Session 12)
 4. **Holiday/half-day market calendar** — Reduce wasted API calls on market holidays
 5. **Advisor context window management** — Token counting, summary generation for long threads
 6. ~~CI pipeline~~ — Completed (Session 10)

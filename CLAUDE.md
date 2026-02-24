@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-24 (Post-Session 9 — MVP Complete)
+**Last Updated:** 2026-02-24 (Post-Session 12 — API Wiring + Pipeline Soak)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -270,8 +270,8 @@ Purpose: Regression guard for the analytics engine. Covers FIFO multi-lot sells,
 | GET | `/api/portfolio/holdings/[symbol]` | Position detail with lots | Implemented |
 | GET | `/api/market/quote` | Latest cached quote | Implemented |
 | GET | `/api/market/history` | Price bar history | Implemented |
-| GET | `/api/market/search` | Symbol search | Stub (needs API keys) |
-| POST | `/api/market/refresh` | Manual quote refresh | Stub (needs API keys) |
+| GET | `/api/market/search` | Symbol search | Implemented (live FMP) |
+| POST | `/api/market/refresh` | Manual quote refresh | Implemented (live multi-provider) |
 | GET | `/api/market/status` | Data health summary | Implemented |
 
 ### Shared Utilities
