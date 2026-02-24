@@ -11,6 +11,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.2 | 2026-02-24 | Sessions 8–10 complete (506 tests). R-1/R-5/R-6 resolved. L-7/L-8 added. All sessions done — MVP + first post-MVP hardening. |
 | 2.1 | 2026-02-23 | Session 7 complete (407 tests). Updated Epic 6B, session tracker, test progression, critical path. AD-S7 confirmed. Risks R-8/R-9 resolved. |
 | 2.0 | 2026-02-22 | Updated status tracker (S1–S6 complete), resolved risks R-3/R-7, added architecture decisions from execution (AD-S1 through AD-S6), added Session 7 plan/kickoff references, added lessons learned section |
 | 1.0 | 2026-02-21 | Initial roadmap. 9 sessions across 10 epics. |
@@ -490,7 +491,7 @@ The `TEAM-CHECKLIST.md` contains four checklists: Frontend, Backend, QA, and UX/
 | R-3 | TradingView chart theming too limited | Low | Low | ✅ **Resolved (S6).** Dark theme, custom colors, crosshair all work with v5 API. No custom tooltip overlay needed. v5 API change (`addSeries` pattern) caught and fixed during integration. |
 | R-4 | Prisma Decimal + SQLite TEXT causes comparison issues | Medium | Medium | ✅ **Resolved (S9).** AD-S1 enforces application-code comparison only. No SQL numeric comparisons on Decimal columns. No issues observed through 9 sessions. |
 | R-5 | Advisor system prompt quality | Medium | High | ✅ **Resolved (S9).** System prompt tested against all 5 intent categories with real LLM (claude-sonnet-4-6 with adaptive thinking). All 5 pass on first attempt. |
-| R-6 | Snapshot rebuild performance at scale | Low | Low | ✅ **Mitigated.** Sub-second rebuild confirmed with 28 instruments. Documented in KNOWN-LIMITATIONS.md (W-3, W-4). |
+| R-6 | Snapshot rebuild performance at scale | Low | Low | ✅ **Resolved (S10).** Benchmark: 147ms for 20 instruments + 215 transactions + 8800 price bars. Snapshot rebuild now wrapped in `prisma.$transaction()` (AD-S10a). |
 | R-7 | DM Sans tabular-nums not working via Google Fonts | Low | Medium | ✅ **Resolved (S5/S6).** `font-mono` applied to numeric table columns. Holdings table alignment confirmed correct across all numeric columns. |
 | R-8 | Sell validation error UX unclear to user | Medium | High | ✅ **Resolved (S7).** SellValidationError component shows deficit quantity, first violation date, and suggested fix. Inline display below form — form stays open for adjustment. |
 | R-9 | Multi-fetch waterfall on holding detail page | Medium | Low | ✅ **Resolved (S7).** Holding detail uses separate hooks; no waterfall observed. |
@@ -509,6 +510,8 @@ Patterns that have proven effective across Sessions 1–6 and should be continue
 | L-4 | **Test progression is healthy and consistent.** | S1: 71 → S2: 162 → S3: 218 → S4: 275 → S5: 324 → S6: 363. ~40–90 new tests per session. No regressions. |
 | L-5 | **`Number()` exception discipline is holding.** | AD-S6c: Only `chart-utils.ts` uses `Number()` for TradingView. All other code uses Decimal formatters. Must extend to `chart-candlestick-utils.ts` in S7 and verify no new leaks. |
 | L-6 | **Parallel teammate mode works when filesystem scopes don't overlap.** | 5 of 6 completed sessions used parallel mode with zero merge conflicts reported. Continue enforcing non-overlapping filesystem scopes. |
+| L-7 | **Post-MVP hardening session is high-value.** | S10 resolved 4 known limitations, added CI, and delivered bulk paste — all in one session. Dedicated hardening after MVP captures the maintenance debt that accumulates during feature sprints. |
+| L-8 | **Zero scope cuts across 10 sessions.** | Session planning process has sized work correctly for every session. Priority-ordered scope cut lists were defined but never needed. |
 
 ---
 
@@ -543,8 +546,9 @@ Ideas captured but explicitly deferred past MVP and Next:
 | 5 | ✅ Complete | 2026-02-22 | 324 (+49) | UI foundation + components. No scope cuts. |
 | 6 | ✅ Complete | 2026-02-22 | 363 (+39) | Dashboard + holdings. 17/17 blocking. Zero scope cuts. |
 | 7 | ✅ Complete | 2026-02-23 | 407 (+44) | Holding detail, transactions, charts. 21/21 blocking. Zero scope cuts. |
-| 8 | Not started | — | — | LLM Advisor (backend sequenced → frontend). |
-| 9 | Not started | — | — | Full-stack validation + polish. MVP signoff gate. |
+| 8 | ✅ Complete | 2026-02-24 | 469 (+62) | LLM Advisor backend + frontend. Hardening (H-1–H-5). Zero scope cuts. |
+| 9 | ✅ Complete | 2026-02-24 | 469 (+0*) | Full-stack validation + polish. MVP signoff. *Existing test count; cross-validation (749 checks) run separately. |
+| 10 | ✅ Complete | 2026-02-24 | 506 (+37) | Hardening + bulk paste + CI. W-3/W-4/W-5/W-8 resolved. Zero scope cuts. |
 
 ### Test Progression
 
@@ -555,14 +559,16 @@ S3: ██████████████████████ 218
 S4: ████████████████████████████ 275
 S5: █████████████████████████████████ 324
 S6: ████████████████████████████████████ 363
-S7: █████████████████████████████████████████ 407
+S7:  █████████████████████████████████████████ 407
+S8:  ███████████████████████████████████████████████ 469
+S9:  ███████████████████████████████████████████████ 469
+S10: ██████████████████████████████████████████████████ 506
 ```
 
 ### Remaining Critical Path
 
 ```
-Session 8 (LLM Advisor) ← NEXT
-    └──→ Session 9 (Validation + Polish + MVP Signoff)
+All 10 sessions complete. MVP shipped + first post-MVP hardening session done.
 ```
 
-Two sessions remain. No blockers. No scope debt carried forward.
+No sessions remain. No scope debt. All known data-integrity issues resolved.

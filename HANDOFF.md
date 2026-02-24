@@ -1,13 +1,13 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-24 (Post-Session 9)
-**Last Session:** Session 9 — Full-Stack Validation + Polish + MVP Signoff
+**Last Updated:** 2026-02-24 (Post-Session 10)
+**Last Session:** Session 10 — Hardening + Bulk Paste + CI
 
 ---
 
 ## Current State
 
-The project is at MVP completion. It has a complete backend (Sessions 1–4), full design system + component library (Session 5), data-wired dashboard and holdings pages (Session 6), holding detail, transactions, and charts pages (Session 7), the LLM advisor (Session 8), and full-stack validation with polish (Session 9). All pages are functional with live data. The advisor chat panel is wired end-to-end: FAB → slide-out panel → API route → LLM tool loop → response rendering.
+The project is post-MVP with all known data-integrity issues resolved. Session 10 closed W-3, W-4, W-5, and W-8 from the known limitations, delivered the first post-MVP feature (bulk transaction paste), established CI, and added performance benchmarking. All pages are functional with live data. The advisor chat panel is wired end-to-end.
 
 ### What Exists
 
@@ -15,7 +15,7 @@ The project is at MVP completion. It has a complete backend (Sessions 1–4), fu
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined, database seeded with 28 instruments
-- Vitest 3.2.4 — **469+ tests** passing across **39+ test files**
+- Vitest 3.2.4 — **506 tests** passing across **42 test files**
 - Next.js 15.5.12 App Router with all API routes + all UI pages (including advisor)
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
@@ -23,6 +23,9 @@ The project is at MVP completion. It has a complete backend (Sessions 1–4), fu
 - `.env.example` template with all environment variables
 - `concurrently` wired: `pnpm dev` launches both Next.js and scheduler
 - Seed script at `apps/web/prisma/seed.ts` (28 instruments, 30 transactions, 8300+ price bars)
+- **GitHub Actions CI:** `.github/workflows/ci.yml` — type-check, test, build on push/PR to main
+- **Performance benchmark:** `data/test/benchmark-rebuild.ts` — 20 instruments, 215 transactions, 147ms rebuild
+- **`prefers-reduced-motion`** CSS support gating all animations
 
 **Packages implemented:**
 - `@stalker/shared` — Types, Decimal.js utilities, ULID generation, constants (exchange timezone map)
@@ -35,14 +38,33 @@ The project is at MVP completion. It has a complete backend (Sessions 1–4), fu
 - `@stalker/scheduler` — Complete:
   - Config loader, budget check, poller, graceful shutdown
 
-**API Layer (Session 4, updated Session 7):**
+**API Layer (Sessions 4–10):**
 - **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete
 - **Transaction CRUD:** POST/GET/GET[id]/PUT/DELETE with sell validation via `validateTransactionSet()`
-- **GET /api/transactions:** Now supports listing all transactions (instrumentId optional), includes `symbol` and `instrumentName` per row
-- **Portfolio endpoints:** snapshot (window-based), timeseries (date range), holdings (allocation %), holdings/[symbol] (lot detail)
+- **Bulk transactions:** POST /api/transactions/bulk — tab-separated batch with all-or-none sell validation (AD-S10c)
+- **Portfolio endpoints:** snapshot (read-only, AD-S10b), rebuild (explicit POST), timeseries, holdings (allocation %), holdings/[symbol] (lot detail)
 - **Market endpoints:** quote (cached), history (price bars), search (stub), refresh (stub), status (health summary)
-- **Prisma interface implementations:** PrismaPriceLookup (carry-forward), PrismaSnapshotStore (Decimal serialization)
+- **Prisma interface implementations:** PrismaPriceLookup (carry-forward), PrismaSnapshotStore (Decimal serialization, accepts tx client)
 - **Shared utilities:** errors.ts (apiError factory), Zod validators, prisma singleton
+
+**Session 10 Data Integrity Fixes (Phase 0):**
+- AD-S10a: Snapshot rebuild wrapped in `prisma.$transaction()` — atomic delete + recompute + insert
+- AD-S10b: GET /api/portfolio/snapshot is strictly read-only — POST /api/portfolio/rebuild for explicit rebuild
+- W-5: Anthropic tool_result message translation fully documented
+- W-8: Advisor `formatNum()` uses Decimal.toFixed(2) instead of parseFloat()
+
+**Session 10 Bulk Paste Feature (Phase 1):**
+- `bulk-parser.ts` — Tab/multi-space-separated text parser with per-row validation (23 tests)
+- `POST /api/transactions/bulk` — Batch insert with Zod validation, symbol resolution, sell invariant, $transaction, snapshot rebuild (8 tests)
+- `BulkPastePanel.tsx` — Collapsible disclosure with textarea, parse button, preview table, confirm button
+- `BulkPreviewTable.tsx` — Per-row validation with green/red indicators, error messages
+- `useBulkImport.ts` — Hook for API call with loading/error state
+
+**Session 10 CI & Hardening (Phase 1):**
+- Cross-validation script wrapped as 3 Vitest tests (749 sub-checks across Path A/B/C)
+- GitHub Actions CI: type-check → test → build
+- Snapshot rebuild benchmark: 147ms for 20 instruments + 215 transactions
+- `prefers-reduced-motion` CSS media query gating all animations
 
 **UI Foundation (Session 5 — all implemented):**
 - **Design system:** Tailwind v4 dark theme, 3 bundled fonts (next/font/local), CSS variables, `cn()` utility
@@ -51,58 +73,16 @@ The project is at MVP completion. It has a complete backend (Sessions 1–4), fu
 - **4 empty states:** Dashboard, Holdings, Transactions, Advisor
 - **6 formatting utilities:** formatCurrency, formatPercent, formatQuantity, formatCompact, formatDate, formatRelativeTime (49 tests)
 
-**Dashboard + Holdings (Session 6 — all implemented):**
-- **Dashboard page (`/`):** Hero metric, TradingView area chart (now uses shared useChart hook), window selector (1D-ALL), summary cards, compact holdings table with row click → holding detail, Skeleton loading states
-- **Holdings page (`/holdings`):** Full sortable table (8 columns) with row click → holding detail, totals row, staleness banner + per-instrument staleness indicators, empty state transition
-- **Data fetching hooks:** usePortfolioSnapshot, usePortfolioTimeseries, useHoldings, useMarketStatus
-- **Utility functions:** window-utils (date range mapping), chart-utils (TradingView data transform), holdings-utils (sort, allocation, totals, staleness)
-
-**Holding Detail + Transactions + Charts (Session 7 — all implemented):**
-- **Holding detail page (`/holdings/[symbol]`):** Position summary (2x4 grid), TradingView candlestick chart with date range selector (1M/3M/6M/1Y/ALL), FIFO lots table with per-lot unrealized PnL, transaction history with edit/delete actions wired to modals, unpriced warning banner, 404 redirect to dashboard
-- **Transactions page (`/transactions`):** Full sortable table showing all transactions with symbol, type badges (BUY/SELL), formatted values. Add/edit/delete via modals with sell validation error display (inline SellValidationError on 422). Empty state with CTA.
-- **Charts page (`/charts`):** Symbol selector dropdown + full-width candlestick chart for any held instrument
-- **Add Instrument modal:** Manual entry form with symbol/name/type/exchange fields, symbol search input (stub), 409 duplicate detection. Accessible from transactions page.
-- **Shared chart hook:** `useChart` extracted from Session 6 area chart — handles createChart, ResizeObserver, dispose lifecycle. Used by both PortfolioChart (area) and CandlestickChart.
-- **Sell validation UX:** SellValidationError component shows deficit quantity, first violation date, and suggested fix. Appears inline below form on 422 — form stays open for user to adjust.
-- **Transaction form:** Create and edit modes, BUY/SELL toggle, instrument select, date/price/qty/fees inputs, client-side + server-side validation.
-- **Delete confirmation:** Danger modal with sell validation handling for dependent transactions.
-- **Cross-page navigation:** Holdings table rows → holding detail, holding detail back → holdings, holding detail edit/delete → transaction modals with refetch.
-- **Data hooks:** useHoldingDetail (with refetch), useMarketHistory, useTransactions (with refetch), useInstruments (with refetch)
-- **Utility modules:** chart-candlestick-utils (PriceBar → TradingView, 12 tests), transaction-utils (validation, formatting, sorting, 32 tests)
-
 **Reference Portfolio Fixtures** (`data/test/`):
 - `reference-portfolio.json` — 6 instruments, 25 transactions, 56 trading days of mock prices
 - `expected-outputs.json` — Hand-computed expected values at 6 checkpoint dates
-- 24 fixture-based validation tests
-
-**Advisor (Session 8 — fully implemented):**
-- `@stalker/advisor` — LLM adapter interface, Anthropic adapter, 4 tool definitions, tool execution loop, system prompt
-- Advisor API routes: POST /api/advisor/chat, GET/api/advisor/threads, GET/DELETE /api/advisor/threads/[id]
-- Advisor frontend: AdvisorPanel slide-out, AdvisorHeader, AdvisorMessages, AdvisorInput, SuggestedPrompts, ToolCallIndicator, ThreadList
-- useAdvisor hook: thread/message state management, sendMessage, loadThread, loadThreads, newThread, deleteThread
-- System prompt verified against all 5 intent categories (cross-holding, tax, performance, concentration, staleness)
-
-**Session 8 Hardening (Phase 0):**
-- H-1: Snapshot rebuild wired in all transaction CRUD + instrument DELETE
-- H-2: GET /api/portfolio/snapshot reads cached snapshots first (read-only path)
-- H-3: GET /api/market/search returns `{ results: [] }` (not bare array)
-- H-4: All provider fetch calls use fetchWithTimeout (10s default)
-- H-5: Fonts bundled locally via next/font/local (no Google Fonts CDN dependency)
-
-**Session 9 Polish (Phase 2):**
-- Focus trap hook (`useFocusTrap`) for modal/panel keyboard trapping
-- Focus trap wired into AdvisorPanel with `aria-modal="true"`
-- ARIA fixes: Toast container (`role="status"`, `aria-live="polite"`), DeleteConfirmation (`aria-describedby`), UnpricedWarning (`role="alert"`), loading spinner (`role="status"`, `aria-label="Loading"`)
-- Tool loop empty string fallback fix (empty LLM response → helpful fallback message)
-- Known limitations documented in `KNOWN-LIMITATIONS.md`
+- 24 fixture-based validation tests + 3 cross-validation wrapper tests (749 sub-checks)
 
 ### What Does Not Exist Yet
 
 - Historical price backfill in instrument creation (stubbed — needs live API keys)
 - Manual quote refresh (stubbed — needs live API keys)
 - Symbol search proxy (stubbed — needs live API keys)
-- CI pipeline
-- Bulk transaction paste input (deferred to post-MVP)
 
 ### Known Stubs (Ready to Wire)
 
@@ -114,65 +94,7 @@ The project is at MVP completion. It has a complete backend (Sessions 1–4), fu
 
 ### Known Limitations
 
-See `KNOWN-LIMITATIONS.md` for the full list of documented MVP gaps including:
-- W-3: Snapshot rebuild outside Prisma transaction
-- W-4: GET snapshot side-effecting on cold start
-- W-5: Anthropic tool_result message translation
-- W-8: Decimal formatting truncation in advisor tool executors
-- No holiday/half-day market calendar
-- No `prefers-reduced-motion` support
-- No advisor context window management or summary generation
-
----
-
-## Session 7 Component Usage Guide (for Session 8+)
-
-### Holding Detail Components
-
-```typescript
-import { PositionSummary } from "@/components/holding-detail/PositionSummary";
-import { CandlestickChart } from "@/components/holding-detail/CandlestickChart";
-import { LotsTable } from "@/components/holding-detail/LotsTable";
-import { HoldingTransactions } from "@/components/holding-detail/HoldingTransactions";
-import { UnpricedWarning } from "@/components/holding-detail/UnpricedWarning";
-```
-
-### Transaction Components
-
-```typescript
-import { TransactionFormModal } from "@/components/transactions/TransactionFormModal";
-import { TransactionsTable } from "@/components/transactions/TransactionsTable";
-import { DeleteConfirmation } from "@/components/transactions/DeleteConfirmation";
-import { SellValidationError } from "@/components/transactions/SellValidationError";
-```
-
-### Instrument Components
-
-```typescript
-import { AddInstrumentModal } from "@/components/instruments/AddInstrumentModal";
-import { SymbolSearchInput } from "@/components/instruments/SymbolSearchInput";
-```
-
-### New Data Hooks
-
-```typescript
-import { useHoldingDetail } from "@/lib/hooks/useHoldingDetail";
-import { useMarketHistory } from "@/lib/hooks/useMarketHistory";
-import { useTransactions } from "@/lib/hooks/useTransactions";
-import { useInstruments } from "@/lib/hooks/useInstruments";
-import { useChart } from "@/lib/hooks/useChart";
-import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
-```
-
-### Key Patterns
-
-- **Row click navigation:** Pass `onRowClick` to `HoldingsTable` — navigates to `/holdings/[symbol]`.
-- **Transaction CRUD refetch:** All mutation modals accept `onSuccess` callback — use for refetch.
-- **Sell validation:** 422 responses render `SellValidationError` inline — form stays open for adjustment.
-- **Shared chart hook:** `useChart({ container, options })` returns `{ chart }` — callers add their own series.
-- **Decimal exception:** `Number()` permitted only in `chart-utils.ts` and `chart-candlestick-utils.ts`.
-- **ToastProvider:** Wraps all pages via Shell component — `useToast()` available everywhere.
-- **Focus trap:** `useFocusTrap(containerRef, isActive, returnFocusRef?)` — traps Tab/Shift+Tab within container, returns focus on deactivate.
+See `KNOWN-LIMITATIONS.md` for the current list. W-3, W-4, W-5, W-8 resolved in Session 10.
 
 ---
 
@@ -180,36 +102,36 @@ import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 469+ |
-| Test files | 39+ |
+| Test count (total) | 506 |
+| Test files | 42 |
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (all implemented) |
-| API endpoints | 19 of ~21 implemented (2 stubs: search, refresh) |
-| UI components | 45 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 5 transactions + 2 instruments + 1 chart hook + 7 advisor + 1 focus trap hook) |
-| Data hooks | 11 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart, advisor, focus trap) |
-| Utility modules | 6 (window-utils, chart-utils, chart-candlestick-utils, holdings-utils, transaction-utils, fetch-with-timeout) |
+| API endpoints | 21 (20 implemented + 2 stubs: search, refresh) |
+| UI components | 48 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 7 transactions + 2 instruments + 1 chart hook + 7 advisor + 1 focus trap hook + 1 bulk import hook) |
+| Data hooks | 12 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart, advisor, focus trap, bulk import) |
+| Utility modules | 7 (window-utils, chart-utils, chart-candlestick-utils, holdings-utils, transaction-utils, fetch-with-timeout, bulk-parser) |
 | UI pages | 6 of 6 (all data-wired including advisor) |
 | Prisma tables | 7 of 7 |
 | Market data providers | 3 of 3 |
 | Scheduler | Complete |
 | Analytics engine | Complete |
 | Advisor engine | Complete |
-| Reference portfolio | Complete |
-| Formatting utilities | 6 functions, 49 tests |
+| Reference portfolio | Complete + cross-validation in CI |
+| Benchmark | 147ms (20 instruments, 215 transactions) |
 | Seed data | 28 instruments, 30 transactions, 8300+ price bars |
 
 ---
 
 ## Post-MVP Priorities
 
-1. **Bulk transaction paste input** — `POST /api/transactions/bulk` with tab-delimited paste and preview table
+1. ~~Bulk transaction paste input~~ — Completed (Session 10)
 2. **Live API key wiring** — Symbol search, manual quote refresh, historical price backfill
-3. **CI pipeline** — GitHub Actions with test, build, type-check gates
+3. ~~CI pipeline~~ — Completed (Session 10)
 4. **Holiday/half-day market calendar** — Reduce wasted API calls on market holidays
 5. **Advisor context window management** — Token counting, summary generation for long threads
-6. **`prefers-reduced-motion` support** — Respect user animation preferences
+6. ~~`prefers-reduced-motion` support~~ — Completed (Session 10)
 7. **Responsive refinements** — Tablet/mobile layout adjustments
-8. **Performance profiling** — Identify and optimize slow paths
+8. ~~Performance profiling~~ — Benchmark established (Session 10)
 
 ---
 

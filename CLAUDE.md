@@ -645,6 +645,57 @@ const {
 
 ---
 
+## Session 10 — Hardening + Bulk Paste + CI
+
+### Architecture Decisions
+
+| # | Decision | Rationale |
+|---|----------|-----------|
+| AD-S10a | Snapshot rebuild in `prisma.$transaction()` | Atomic delete + reinsert. Prevents partial snapshots on crash or concurrent write. 30s timeout for large rebuilds. |
+| AD-S10b | `GET /api/portfolio/snapshot` is read-only | HTTP semantic correctness. Returns `{ needsRebuild: true }` when empty. Rebuild via `POST /api/portfolio/rebuild` or transaction CRUD. UI hook auto-triggers rebuild. |
+| AD-S10c | Bulk insert: all-or-none if sell validation fails | If the combined batch + existing transactions violates the sell invariant, zero rows insert. Prevents confusing partial imports. |
+| AD-S10d | Cross-validation in CI via Vitest wrapper | 749-check regression guard runs automatically via `pnpm test`. Three paths: engine, independent FIFO, cross-consistency. |
+
+### Phase 0: Data Integrity Fixes
+
+| Fix | Detail |
+|-----|--------|
+| W-3 | `triggerSnapshotRebuild()` wraps entire rebuild in `prisma.$transaction()`. `PrismaSnapshotStore` and `PrismaPriceLookup` accept `Pick<PrismaClient, ...>` to work with transaction clients. |
+| W-4 | GET snapshot cold-start write path removed. New `POST /api/portfolio/rebuild` endpoint. `usePortfolioSnapshot` hook detects `needsRebuild` and auto-triggers rebuild. |
+| W-5 | Block comment in `anthropic-adapter.ts` explaining tool_result translation: STALKER role='tool' → Anthropic role='user' with tool_result content blocks. |
+| W-8 | `formatNum()` in advisor chat route uses `Decimal.toFixed(2)` directly with regex-based thousands separator. No `parseFloat()`. |
+
+### Bulk Paste Feature
+
+| Component | Purpose |
+|-----------|---------|
+| `bulk-parser.ts` | Tab/multi-space parser with per-row validation. 23 tests. |
+| `POST /api/transactions/bulk` | Zod schema, symbol resolution, sell validation per instrument, $transaction insert, snapshot rebuild. 8 tests. |
+| `BulkPreviewTable.tsx` | Preview with green/red row indicators, error messages, summary count |
+| `BulkPastePanel.tsx` | Collapsible disclosure panel with textarea, parse, confirm flow |
+| `useBulkImport.ts` | Hook for API call with loading/error/result state |
+
+### CI & Performance
+
+| Item | Detail |
+|------|--------|
+| `.github/workflows/ci.yml` | Push/PR to main: tsc, test, build. pnpm 10, Node 20, `--frozen-lockfile`. |
+| `data/test/cross-validate.test.ts` | 3 Vitest tests wrapping 749 cross-validation checks |
+| `data/test/benchmark-rebuild.ts` | 20 instruments, 215 txs, 9000 bars → 147ms rebuild (threshold: 1000ms) |
+| `prefers-reduced-motion` | CSS media query gating all animations (toast, spinner, skeleton, advisor panel) |
+
+### New Tests (37 new, 506 total)
+
+| File | Tests | Scope |
+|------|-------|-------|
+| `apps/web/__tests__/api/portfolio/prisma-implementations.test.ts` | +2 | Transaction atomicity, tx client compat |
+| `apps/web/__tests__/api/portfolio/portfolio.test.ts` | +1 | GET snapshot read-only |
+| `apps/web/src/lib/__tests__/bulk-parser.test.ts` | 23 | Parser: valid rows, missing fields, invalid dates, negative qty, case-insensitive type, etc. |
+| `apps/web/__tests__/api/transactions/bulk.test.ts` | 8 | Bulk API: happy path, unknown symbols, sell validation, dry run, empty batch, date conversion |
+| `data/test/cross-validate.test.ts` | 3 | 749 sub-checks across Path A/B/C |
+
+---
+
 ## Agent Protocols
 
 ### Session Start
