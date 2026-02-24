@@ -46,8 +46,14 @@ function serializeHoldings(holdingsJson: Record<string, HoldingSnapshot>): strin
   });
 }
 
+/**
+ * Accepts PrismaClient or a Prisma interactive transaction client.
+ * Both expose the same model delegate for portfolioValueSnapshot.
+ */
+type PrismaLike = Pick<PrismaClient, 'portfolioValueSnapshot'>;
+
 export class PrismaSnapshotStore implements SnapshotStore {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaLike) {}
 
   async deleteFrom(date: string): Promise<number> {
     const result = await this.prisma.portfolioValueSnapshot.deleteMany({

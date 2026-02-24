@@ -14,10 +14,8 @@ import {
   createGetQuotesExecutor,
 } from '@stalker/advisor';
 import type { Message, LLMAdapter } from '@stalker/advisor';
-import { PrismaPriceLookup } from '@/lib/prisma-price-lookup';
 import { PrismaSnapshotStore } from '@/lib/prisma-snapshot-store';
-import { queryPortfolioWindow, processTransactions } from '@stalker/analytics';
-import { getNextTradingDay, isTradingDay, getPriorTradingDay } from '@stalker/market-data';
+import { processTransactions } from '@stalker/analytics';
 
 /**
  * Build tool executors that call real analytics/Prisma functions.
@@ -117,39 +115,12 @@ function buildToolExecutors(): Record<string, (args: Record<string, unknown>) =>
         };
       }
 
-      // Fallback: build from scratch
-      const priceLookup = new PrismaPriceLookup(prisma);
-      const calendar = { getNextTradingDay, isTradingDay };
-      const result = await queryPortfolioWindow({
-        startDate: startDateStr,
-        endDate: endDateStr,
-        transactions,
-        instruments,
-        priceLookup,
-        snapshotStore,
-        calendar,
-      });
-
-      const holdings = result.holdings.map((h) => ({
-        symbol: h.symbol,
-        quantity: h.qty.toString(),
-        marketValue: `$${formatNum(h.value)}`,
-        costBasis: `$${formatNum(h.costBasis)}`,
-        unrealizedPnl: `$${formatNum(h.unrealizedPnl)}`,
-        allocation: result.endValue.isZero()
-          ? '0.00%'
-          : `${h.value.dividedBy(result.endValue).times(100).toFixed(2)}%`,
-      }));
-
+      // AD-S10b: No write fallback — snapshots must be built via transaction CRUD or POST /api/portfolio/rebuild
       return {
-        totalValue: `$${formatNum(result.endValue)}`,
-        totalCostBasis: `$${formatNum(result.holdings.reduce((s, h) => s.plus(h.costBasis), toDecimal('0')))}`,
-        unrealizedPnl: `$${formatNum(result.unrealizedPnlAtEnd)}`,
-        realizedPnl: `$${formatNum(result.realizedPnlInWindow)}`,
-        periodChange: `$${formatNum(result.absoluteChange)}`,
-        periodChangePct: `${result.percentageChange.times(100).toFixed(2)}%`,
+        totalValue: '$0.00',
+        holdings: [],
         window,
-        holdings,
+        message: 'No cached portfolio snapshots available. Add a transaction or trigger a portfolio rebuild to generate snapshot data.',
       };
     },
   });
@@ -361,10 +332,22 @@ function toSharedTransaction(tx: {
 
 /**
  * Format a Decimal-like value as a readable number string with commas and 2 decimal places.
+ *
+ * W-8 fix: Uses Decimal.toFixed(2) directly instead of parseFloat() to avoid
+ * floating-point artifacts (e.g., "$10,000.004999999" instead of "$10,000.00").
+ * The LLM receives a string — make it a precision-correct string.
  */
-function formatNum(value: { toFixed(dp: number): string; toNumber?(): number }): string {
-  const num = parseFloat(value.toFixed(2));
-  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatNum(value: { toFixed(dp: number): string }): string {
+  const fixed = value.toFixed(2);
+  // Format with thousands separators using Intl (operates on the string representation)
+  const parts = fixed.split('.');
+  const intPart = parts[0]!;
+  const decPart = parts[1] ?? '00';
+  // Add thousands separators to the integer part
+  const isNegative = intPart.startsWith('-');
+  const digits = isNegative ? intPart.slice(1) : intPart;
+  const formatted = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${isNegative ? '-' : ''}${formatted}.${decPart}`;
 }
 
 /**

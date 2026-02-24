@@ -87,7 +87,24 @@ export class AnthropicAdapter implements LLMAdapter {
           result.push({ role: 'assistant', content: contentBlocks });
         }
       } else if (msg.role === 'tool') {
-        // Anthropic expects tool results as user messages with tool_result content blocks
+        /**
+         * W-5: Anthropic tool_result message translation workaround.
+         *
+         * STALKER's internal message format uses a dedicated 'tool' role:
+         *   { role: 'tool', content: '<JSON string>', toolCallId: '<id>' }
+         *
+         * Anthropic's Messages API does NOT have a 'tool' role. Instead, it expects
+         * tool results to be sent as 'user' role messages containing an array of
+         * content blocks with type 'tool_result':
+         *   { role: 'user', content: [{ type: 'tool_result', tool_use_id: '<id>', content: '<string>' }] }
+         *
+         * This transformation maps STALKER's role='tool' → Anthropic's role='user' with
+         * tool_result content blocks. The tool_use_id links the result back to the
+         * corresponding tool_use block in the preceding assistant message.
+         *
+         * If STALKER adds support for other LLM providers (e.g., OpenAI), those adapters
+         * will need their own translation since OpenAI uses a 'tool' role natively.
+         */
         result.push({
           role: 'user',
           content: [

@@ -269,3 +269,104 @@ describe('PrismaSnapshotStore', () => {
     expect(snapshot).toBeNull();
   });
 });
+
+describe('Snapshot rebuild transactional atomicity (AD-S10a)', () => {
+  beforeEach(async () => {
+    await prisma.portfolioValueSnapshot.deleteMany();
+  });
+
+  it('transaction rollback preserves existing snapshots when rebuild fails mid-flight', async () => {
+    // Step 1: Pre-populate snapshots
+    const store = new PrismaSnapshotStore(prisma);
+    await store.writeBatch([
+      {
+        id: 0,
+        date: '2026-01-06',
+        totalValue: toDecimal('10000'),
+        totalCostBasis: toDecimal('9500'),
+        realizedPnl: ZERO,
+        unrealizedPnl: toDecimal('500'),
+        holdingsJson: { IMPLTEST: { qty: toDecimal('100'), value: toDecimal('10000'), costBasis: toDecimal('9500') } },
+        rebuiltAt: new Date(),
+      },
+      {
+        id: 0,
+        date: '2026-01-07',
+        totalValue: toDecimal('10700'),
+        totalCostBasis: toDecimal('9500'),
+        realizedPnl: ZERO,
+        unrealizedPnl: toDecimal('1200'),
+        holdingsJson: { IMPLTEST: { qty: toDecimal('100'), value: toDecimal('10700'), costBasis: toDecimal('9500') } },
+        rebuiltAt: new Date(),
+      },
+    ]);
+
+    // Verify pre-condition: 2 snapshots exist
+    const before = await store.getRange('2026-01-01', '2026-01-31');
+    expect(before).toHaveLength(2);
+
+    // Step 2: Attempt a transaction that deletes snapshots then throws
+    try {
+      await prisma.$transaction(async (tx) => {
+        const txStore = new PrismaSnapshotStore(tx);
+        // Delete all snapshots from Jan 6 forward
+        await txStore.deleteFrom('2026-01-06');
+
+        // Verify inside the transaction: snapshots are deleted
+        const insideTx = await txStore.getRange('2026-01-01', '2026-01-31');
+        expect(insideTx).toHaveLength(0);
+
+        // Simulate a mid-flight failure (e.g., analytics engine throws)
+        throw new Error('Simulated rebuild failure');
+      });
+    } catch (err: unknown) {
+      expect((err as Error).message).toBe('Simulated rebuild failure');
+    }
+
+    // Step 3: Verify snapshots survived the rollback
+    const after = await store.getRange('2026-01-01', '2026-01-31');
+    expect(after).toHaveLength(2);
+    expect(after[0]!.date).toBe('2026-01-06');
+    expect(after[0]!.totalValue.toString()).toBe('10000');
+    expect(after[1]!.date).toBe('2026-01-07');
+    expect(after[1]!.totalValue.toString()).toBe('10700');
+  });
+
+  it('PrismaSnapshotStore works with transaction client', async () => {
+    // Verify that PrismaSnapshotStore and PrismaPriceLookup accept transaction clients
+    await prisma.$transaction(async (tx) => {
+      const txStore = new PrismaSnapshotStore(tx);
+      const txLookup = new PrismaPriceLookup(tx);
+
+      // Write a snapshot via transaction client
+      await txStore.writeBatch([
+        {
+          id: 0,
+          date: '2026-01-10',
+          totalValue: toDecimal('11000'),
+          totalCostBasis: toDecimal('9500'),
+          realizedPnl: ZERO,
+          unrealizedPnl: toDecimal('1500'),
+          holdingsJson: {},
+          rebuiltAt: new Date(),
+        },
+      ]);
+
+      // Read it back
+      const snap = await txStore.getByDate('2026-01-10');
+      expect(snap).not.toBeNull();
+      expect(snap!.totalValue.toString()).toBe('11000');
+
+      // Price lookup works too
+      const price = await txLookup.getClosePrice(TEST_INSTRUMENT_ID, '2026-01-06');
+      expect(price).not.toBeNull();
+      expect(price!.toString()).toBe('103');
+    });
+
+    // Verify the write persisted after commit
+    const store = new PrismaSnapshotStore(prisma);
+    const snap = await store.getByDate('2026-01-10');
+    expect(snap).not.toBeNull();
+    expect(snap!.totalValue.toString()).toBe('11000');
+  });
+});

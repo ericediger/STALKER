@@ -3,8 +3,14 @@ import type { PrismaClient } from '@prisma/client';
 import { toDecimal } from '@stalker/shared';
 import type { Decimal } from '@stalker/shared';
 
+/**
+ * Accepts PrismaClient or a Prisma interactive transaction client.
+ * Both expose the same model delegate for priceBar.
+ */
+type PrismaLike = Pick<PrismaClient, 'priceBar'>;
+
 export class PrismaPriceLookup implements PriceLookup {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaLike) {}
 
   async getClosePrice(instrumentId: string, date: string): Promise<Decimal | null> {
     const bar = await this.prisma.priceBar.findFirst({

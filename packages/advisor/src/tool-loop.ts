@@ -88,7 +88,7 @@ export async function executeToolLoop(params: {
   }
 
   // Max iterations reached — return whatever we have
-  // Use || (not ??) to coalesce empty strings to the fallback message
+  // Intentional: || (not ??) catches empty strings from LLM, not just null/undefined
   const lastAssistant = generatedMessages.filter((m) => m.role === 'assistant').pop();
   return {
     messages: generatedMessages,

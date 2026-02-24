@@ -58,33 +58,36 @@ function toDateStr(d: Date): string {
  * Trigger a snapshot rebuild from the given date forward.
  * Loads all instruments and transactions from the database and delegates to the analytics engine.
  *
- * NOTE (W-3): This runs outside the Prisma transaction that performs the mutation.
- * Acceptable for MVP since we're single-user and the rebuild is idempotent.
+ * AD-S10a: The entire delete-recompute-insert cycle runs inside a Prisma interactive
+ * transaction. If the recompute throws mid-flight, the transaction rolls back and zero
+ * snapshots are deleted. This prevents partial snapshot state on crash or error.
  */
 export async function triggerSnapshotRebuild(affectedDate: Date): Promise<void> {
   const affectedDateStr = toDateStr(affectedDate);
 
-  const [prismaInstruments, prismaTransactions] = await Promise.all([
-    prisma.instrument.findMany(),
-    prisma.transaction.findMany({ orderBy: { tradeAt: 'asc' } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    const [prismaInstruments, prismaTransactions] = await Promise.all([
+      tx.instrument.findMany(),
+      tx.transaction.findMany({ orderBy: { tradeAt: 'asc' } }),
+    ]);
 
-  if (prismaTransactions.length === 0) {
-    // No transactions remain — clear all snapshots
-    const store = new PrismaSnapshotStore(prisma);
-    await store.deleteFrom('1970-01-01');
-    return;
-  }
+    if (prismaTransactions.length === 0) {
+      // No transactions remain — clear all snapshots
+      const store = new PrismaSnapshotStore(tx);
+      await store.deleteFrom('1970-01-01');
+      return;
+    }
 
-  const instruments = prismaInstruments.map(toSharedInstrument);
-  const transactions = prismaTransactions.map(toSharedTransaction);
+    const instruments = prismaInstruments.map(toSharedInstrument);
+    const transactions = prismaTransactions.map(toSharedTransaction);
 
-  await rebuildSnapshotsFrom({
-    affectedDate: affectedDateStr,
-    transactions,
-    instruments,
-    priceLookup: new PrismaPriceLookup(prisma),
-    snapshotStore: new PrismaSnapshotStore(prisma),
-    calendar: { getNextTradingDay, isTradingDay },
-  });
+    await rebuildSnapshotsFrom({
+      affectedDate: affectedDateStr,
+      transactions,
+      instruments,
+      priceLookup: new PrismaPriceLookup(tx),
+      snapshotStore: new PrismaSnapshotStore(tx),
+      calendar: { getNextTradingDay, isTradingDay },
+    });
+  }, { timeout: 30000 }); // 30s timeout for large rebuilds
 }
