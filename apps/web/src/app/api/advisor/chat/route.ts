@@ -183,12 +183,12 @@ function buildToolExecutors(): Record<string, (args: Record<string, unknown>) =>
 
       const lots = result.lots.map((lot) => {
         const unrealizedPnl = markPrice
-          ? lot.remainingQty.times(markPrice.minus(lot.costBasisPerUnit))
+          ? lot.remainingQty.times(markPrice.minus(lot.price))
           : null;
         return {
-          openDate: lot.openDate.toISOString().split('T')[0],
+          openDate: lot.openedAt.toISOString().split('T')[0],
           quantity: lot.remainingQty.toString(),
-          costBasisPerShare: `$${formatNum(lot.costBasisPerUnit)}`,
+          costBasisPerShare: `$${formatNum(lot.price)}`,
           totalCostBasis: `$${formatNum(lot.costBasisRemaining)}`,
           unrealizedPnl: unrealizedPnl ? `$${formatNum(unrealizedPnl)}` : 'N/A (no price)',
         };

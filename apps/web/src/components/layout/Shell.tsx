@@ -1,6 +1,10 @@
+"use client";
+
+import { useState, useCallback } from "react";
 import { NavTabs } from "@/components/layout/NavTabs";
 import { DataHealthFooter } from "@/components/layout/DataHealthFooter";
 import { AdvisorFAB } from "@/components/layout/AdvisorFAB";
+import { AdvisorPanel } from "@/components/advisor/AdvisorPanel";
 import { ToastProvider } from "@/components/ui/Toast";
 
 interface ShellProps {
@@ -8,6 +12,11 @@ interface ShellProps {
 }
 
 export function Shell({ children }: ShellProps) {
+  const [advisorOpen, setAdvisorOpen] = useState(false);
+
+  const openAdvisor = useCallback(() => setAdvisorOpen(true), []);
+  const closeAdvisor = useCallback(() => setAdvisorOpen(false), []);
+
   return (
     <ToastProvider>
       <NavTabs />
@@ -15,7 +24,8 @@ export function Shell({ children }: ShellProps) {
         {children}
       </main>
       <DataHealthFooter />
-      <AdvisorFAB />
+      <AdvisorFAB onClick={openAdvisor} />
+      <AdvisorPanel open={advisorOpen} onClose={closeAdvisor} />
     </ToastProvider>
   );
 }

@@ -1,13 +1,15 @@
 "use client";
 
-export function AdvisorFAB() {
+interface AdvisorFABProps {
+  onClick: () => void;
+}
+
+export function AdvisorFAB({ onClick }: AdvisorFABProps) {
   return (
     <button
       type="button"
-      onClick={() => {
-        // TODO: Wire to advisor panel in Session 8
-      }}
-      className="fixed bottom-14 right-6 z-50 w-12 h-12 rounded-full bg-accent-primary flex items-center justify-center shadow-lg shadow-accent-primary/20 hover:brightness-110 transition-all animate-pulse"
+      onClick={onClick}
+      className="fixed bottom-14 right-6 z-30 w-12 h-12 rounded-full bg-accent-primary flex items-center justify-center shadow-lg shadow-accent-primary/20 hover:brightness-110 transition-all animate-pulse"
       aria-label="Open advisor"
     >
       <svg
