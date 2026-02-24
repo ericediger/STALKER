@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-23 (Post-Session 7)
+**Last Updated:** 2026-02-23 (Post-Session 8)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -350,10 +350,10 @@ Spacing: `p-card` (1rem), `p-section` (1.5rem), `px-page` (2rem).
 
 | Component | Purpose |
 |-----------|---------|
-| `Shell` | Wraps NavTabs + content + DataHealthFooter + AdvisorFAB |
+| `Shell` | Wraps NavTabs + content + DataHealthFooter + AdvisorFAB + AdvisorPanel. Manages advisor open/close state. |
 | `NavTabs` | 4 tabs: Dashboard, Holdings, Transactions, Charts. Active state via `usePathname()` |
 | `DataHealthFooter` | Fixed bottom bar wired to `GET /api/market/status` — instrument count, polling, budget, freshness |
-| `AdvisorFAB` | Fixed circular button bottom-right. TODO: wire to advisor panel |
+| `AdvisorFAB` | Fixed circular button bottom-right. Accepts `onClick` prop to open advisor panel. |
 
 ### Empty States (`apps/web/src/components/empty-states/`)
 
@@ -522,6 +522,94 @@ Note: The field is `firstViolationDate` (not `firstNegativeDate` as in the maste
 ### ToastProvider
 
 `ToastProvider` wraps all pages via `Shell` component. `useToast()` is available in any component rendered within the pages layout.
+
+---
+
+## Session 8 — Code Review Hardening + LLM Advisor
+
+### Phase 0: Hardening
+
+| Task | What Changed |
+|------|-------------|
+| H-1 | Snapshot rebuild wired in POST/PUT/DELETE transaction + DELETE instrument via `triggerSnapshotRebuild()` helper |
+| H-2 | GET /api/portfolio/snapshot reads cached snapshots first (read-only), only rebuilds on cold start |
+| H-3 | GET /api/market/search returns `{ results: [] }` with defensive client parsing |
+| H-4 | `fetchWithTimeout()` utility wrapping all provider fetch calls (10s default, AbortController) |
+| H-5 | Fonts bundled locally in `apps/web/src/fonts/` via `next/font/local` — no Google Fonts CDN dependency |
+
+### Advisor Backend (`packages/advisor/`)
+
+| File | Purpose |
+|------|---------|
+| `llm-adapter.ts` | Provider-agnostic interface: `LLMAdapter`, `Message`, `ToolCall`, `ToolDefinition`, `LLMResponse` |
+| `anthropic-adapter.ts` | Anthropic Claude implementation. Handles `tool_use`/`tool_result` translation (W-5). Non-streaming. |
+| `tools/get-portfolio-snapshot.ts` | Tool definition + dependency-injected executor for portfolio overview |
+| `tools/get-holding.ts` | Tool definition + executor for single position detail with FIFO lots |
+| `tools/get-transactions.ts` | Tool definition + executor for filtered transaction list |
+| `tools/get-quotes.ts` | Tool definition + executor for quote freshness check |
+| `tools/index.ts` | Barrel export + `allToolDefinitions` array |
+| `tool-loop.ts` | Tool execution loop: LLM call → tool execution → loop (max 5 iterations) |
+| `system-prompt.ts` | System prompt covering all 5 intent categories |
+| `index.ts` | Package barrel export |
+
+### Advisor API Routes
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | `/api/advisor/chat` | Send message, execute tool loop, return all generated messages. Creates thread if needed. |
+| GET | `/api/advisor/threads` | List all threads with message count, sorted by updatedAt desc |
+| GET | `/api/advisor/threads/[id]` | Thread detail with all messages |
+| DELETE | `/api/advisor/threads/[id]` | Delete thread + messages, return 204 |
+
+**Chat route internals:** `buildToolExecutors()` creates Prisma-backed executors for all 4 tools. All Decimal values formatted as `$X,XXX.XX` strings via `formatNum()`. Lot data uses `Lot.price` (per-unit cost) and `Lot.openedAt`.
+
+### Advisor Frontend (`apps/web/src/components/advisor/`)
+
+| Component | Purpose |
+|-----------|---------|
+| `AdvisorPanel` | Slide-out panel (448px max-w-md). Backdrop, Escape key, smooth transition. Manages thread/message display. |
+| `AdvisorHeader` | Title, New Thread button, Threads dropdown toggle, Close button |
+| `AdvisorMessages` | Scrollable message list with auto-scroll. Renders user/assistant/tool messages. Loading indicator. |
+| `AdvisorInput` | Textarea with auto-resize (max 4 lines), Enter to send, Shift+Enter for newline, loading spinner |
+| `SuggestedPrompts` | 3 clickable prompt cards for empty threads |
+| `ToolCallIndicator` | Collapsed/expanded tool call display with tool name labels |
+| `ThreadList` | Thread list dropdown with select and delete |
+
+### Advisor Hook (`apps/web/src/lib/hooks/useAdvisor.ts`)
+
+```typescript
+const {
+  threads, activeThreadId, messages, isLoading, error, isSetupRequired,
+  sendMessage, loadThreads, loadThread, newThread, deleteThread,
+} = useAdvisor();
+```
+
+- `sendMessage`: Optimistic user message → POST /api/advisor/chat → append response messages
+- `isSetupRequired`: Set when API returns `LLM_NOT_CONFIGURED` (503) — shows setup instructions
+- `error`: Set on 502 (LLM error) or network failure
+
+### System Prompt Intent Categories (Verified Phase 2)
+
+| # | Category | Coverage |
+|---|----------|----------|
+| 1 | Cross-holding synthesis | Rankings by PnL contribution, allocation comparison |
+| 2 | Tax-aware reasoning | FIFO lot breakdown, explicit per-lot gain calculation |
+| 3 | Performance attribution | Multi-window comparison, holding-level performance |
+| 4 | Concentration awareness | Allocation percentage analysis, threshold flagging |
+| 5 | Staleness/data quality | 4-step freshness protocol, 2-hour threshold, disclosure template |
+
+### New Tests (62 new, 469 total)
+
+| File | Tests | Scope |
+|------|-------|-------|
+| `packages/advisor/__tests__/tool-executors.test.ts` | 12 | Tool executor parameter passing, defaults, error cases |
+| `packages/advisor/__tests__/tool-loop.test.ts` | 7 | Loop termination, tool error capture, max iterations, adapter error propagation |
+| `packages/advisor/__tests__/anthropic-adapter.test.ts` | 6 | SDK mock, message translation, tool_use/tool_result, model env var |
+| `packages/advisor/__tests__/exports.test.ts` | 8 | Barrel exports, tool definitions, system prompt coverage |
+| `apps/web/__tests__/api/advisor/chat.test.ts` | 8 | 503 missing key, 400 validation, thread creation, 404, 502 LLM error |
+| `apps/web/__tests__/api/advisor/threads.test.ts` | 8 | Thread list, thread detail, thread delete, 404, 500 |
+| `apps/web/__tests__/api/advisor/useAdvisor.test.ts` | 7 | Frontend API integration (fetch shapes, error handling) |
+| Hardening tests (Phases 0) | 6 | search route, fetchWithTimeout |
 
 ---
 

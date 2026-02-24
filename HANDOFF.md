@@ -1,13 +1,13 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-23 (Post-Session 7)
-**Last Session:** Session 7 — Holding Detail + Transactions + Charts UI
+**Last Updated:** 2026-02-23 (Post-Session 8)
+**Last Session:** Session 8 — Code Review Hardening + LLM Advisor
 
 ---
 
 ## Current State
 
-The project has a complete backend (Sessions 1–4), full design system + component library (Session 5), data-wired dashboard and holdings pages (Session 6), and now holding detail, transactions, and charts pages (Session 7). Every page except the advisor chat is functional with live data.
+The project has a complete backend (Sessions 1–4), full design system + component library (Session 5), data-wired dashboard and holdings pages (Session 6), holding detail, transactions, and charts pages (Session 7), and now the LLM advisor (Session 8). All pages are functional with live data. The advisor chat panel is wired end-to-end: FAB → slide-out panel → API route → LLM tool loop → response rendering.
 
 ### What Exists
 
@@ -15,8 +15,8 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined, database seeded with 28 instruments
-- Vitest 3.2.4 — **407 tests** passing across **30 test files**
-- Next.js 15.5.12 App Router with all API routes + all core UI pages
+- Vitest 3.2.4 — **469 tests** passing across **39 test files**
+- Next.js 15.5.12 App Router with all API routes + all UI pages (including advisor)
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
 - TradingView Lightweight Charts v5 for portfolio area chart + candlestick charts
@@ -75,27 +75,34 @@ The project has a complete backend (Sessions 1–4), full design system + compon
 - `expected-outputs.json` — Hand-computed expected values at 6 checkpoint dates
 - 24 fixture-based validation tests
 
-**Packages scaffolded (empty shells):**
-- `@stalker/advisor` — placeholder only
+**Advisor (Session 8 — fully implemented):**
+- `@stalker/advisor` — LLM adapter interface, Anthropic adapter, 4 tool definitions, tool execution loop, system prompt
+- Advisor API routes: POST /api/advisor/chat, GET/api/advisor/threads, GET/DELETE /api/advisor/threads/[id]
+- Advisor frontend: AdvisorPanel slide-out, AdvisorHeader, AdvisorMessages, AdvisorInput, SuggestedPrompts, ToolCallIndicator, ThreadList
+- useAdvisor hook: thread/message state management, sendMessage, loadThread, loadThreads, newThread, deleteThread
+- System prompt verified against all 5 intent categories (cross-holding, tax, performance, concentration, staleness)
+
+**Session 8 Hardening (Phase 0):**
+- H-1: Snapshot rebuild wired in all transaction CRUD + instrument DELETE
+- H-2: GET /api/portfolio/snapshot reads cached snapshots first (read-only path)
+- H-3: GET /api/market/search returns `{ results: [] }` (not bare array)
+- H-4: All provider fetch calls use fetchWithTimeout (10s default)
+- H-5: Fonts bundled locally via next/font/local (no Google Fonts CDN dependency)
 
 ### What Does Not Exist Yet
 
-- LLM advisor chat panel (Session 8)
 - Historical price backfill in instrument creation (stubbed — needs live API keys)
 - Manual quote refresh (stubbed — needs live API keys)
 - Symbol search proxy (stubbed — needs live API keys)
-- Snapshot rebuild wiring in transaction endpoints (PrismaPriceLookup/SnapshotStore exist but aren't called from CRUD yet)
 - CI pipeline
 
 ### Known Stubs (Ready to Wire)
 
 | Stub | Location | What's Needed |
 |------|----------|---------------|
-| Snapshot rebuild after tx CRUD | `apps/web/src/app/api/transactions/` | Call `rebuildSnapshotsFrom()` with PrismaPriceLookup + PrismaSnapshotStore |
 | Historical backfill on instrument create | `apps/web/src/app/api/instruments/route.ts` | Call market data service `getHistory()`, write PriceBars, set firstBarDate |
 | Symbol search | `apps/web/src/app/api/market/search/route.ts` | Wire to MarketDataService.searchSymbols() |
 | Manual quote refresh | `apps/web/src/app/api/market/refresh/route.ts` | Wire to MarketDataService.getQuote() per instrument |
-| AdvisorFAB | `apps/web/src/components/layout/AdvisorFAB.tsx` | Wire to advisor panel |
 
 ---
 
@@ -152,19 +159,20 @@ import { useChart } from "@/lib/hooks/useChart";
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 407 |
-| Test files | 30 |
+| Test count (total) | 469 |
+| Test files | 39 |
 | TypeScript errors | 0 |
-| Packages created | 5 of 5 (4 implemented, 1 shell) |
-| API endpoints | 16 of ~18 implemented (2 stubs: search, refresh) |
-| UI components | 37 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 5 transactions + 2 instruments + 1 chart hook) |
-| Data hooks | 9 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart) |
-| Utility modules | 5 (window-utils, chart-utils, chart-candlestick-utils, holdings-utils, transaction-utils) |
-| UI pages | 6 of 6 (5 data-wired + 1 advisor stub) |
+| Packages created | 5 of 5 (all implemented) |
+| API endpoints | 19 of ~21 implemented (2 stubs: search, refresh) |
+| UI components | 44 (12 base + 4 layout + 4 empty states + 4 dashboard + 5 holding-detail + 5 transactions + 2 instruments + 1 chart hook + 7 advisor) |
+| Data hooks | 10 (snapshot, timeseries, holdings, market status, holding detail, market history, transactions, instruments, chart, advisor) |
+| Utility modules | 6 (window-utils, chart-utils, chart-candlestick-utils, holdings-utils, transaction-utils, fetch-with-timeout) |
+| UI pages | 6 of 6 (all data-wired including advisor) |
 | Prisma tables | 7 of 7 |
 | Market data providers | 3 of 3 |
 | Scheduler | Complete |
 | Analytics engine | Complete |
+| Advisor engine | Complete |
 | Reference portfolio | Complete |
 | Formatting utilities | 6 functions, 49 tests |
 | Seed data | 28 instruments, 30 transactions, 8300+ price bars |
@@ -173,15 +181,16 @@ import { useChart } from "@/lib/hooks/useChart";
 
 ## What's Next
 
-**Session 8: LLM Advisor**
+**Session 9: Full-Stack Validation + Polish + MVP Signoff**
 
-Scope: Wire the advisor chat panel — LLM adapter, tool definitions, system prompt, slide-out panel from AdvisorFAB.
+Scope: End-to-end testing with live data, polish remaining rough edges, MVP signoff.
 
-Key integration points:
-- Advisor reads cached data via tools: `getPortfolioSnapshot`, `getHolding`, `getTransactions`, `getQuotes`
-- Provider-agnostic adapter (Anthropic Claude primary, OpenAI secondary)
-- AdvisorFAB already exists — wire to slide-out chat panel
-- Thread/message persistence in AdvisorThread + AdvisorMessage tables
+Key areas:
+- Full-stack smoke test: seed data → dashboard → holdings → advisor chat → thread persistence
+- Live API key integration test (if keys available): scheduler polls → quote updates → advisor sees fresh data
+- Any remaining accessibility polish (focus trap in advisor panel, keyboard navigation)
+- CI pipeline setup (if time allows)
+- Final documentation sweep
 
 ---
 

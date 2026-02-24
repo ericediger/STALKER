@@ -1,7 +1,7 @@
 # AGENTS.md — STALKER Tech Stack & Design Decisions
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-23 (Post-Session 7)
+**Last Updated:** 2026-02-23 (Post-Session 8)
 
 ---
 
@@ -18,10 +18,10 @@
 | **Market calendar** | Custom `MarketCalendar` module | Weekday check only for MVP |
 | **UI styling** | Tailwind CSS 4.2 | CSS-based `@theme` config (no tailwind.config.ts), PostCSS integration |
 | **UI utilities** | clsx + tailwind-merge | `cn()` utility for conditional class merging |
-| **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Google Fonts via next/font |
+| **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Local woff2 via next/font/local (Session 8 H-5) |
 | **Charting** | TradingView Lightweight Charts 5.1.0 | MIT license, v5 API: `chart.addSeries(AreaSeries, opts)` |
 | **Monorepo** | pnpm 10.30.1 workspaces | Native, fast, no Turborepo/Nx needed |
-| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 407 tests passing |
+| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 469 tests passing |
 | **Validation** | Zod 4.3.6 | Input validation for API routes |
 | **IDs** | ULID 2.x | Sortable, no coordination, SQLite-friendly |
 | **Process manager** | concurrently 9.x | Runs Next.js + scheduler together via `pnpm dev` |
