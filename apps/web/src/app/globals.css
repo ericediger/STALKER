@@ -57,3 +57,18 @@ body {
 :focus-visible {
   @apply outline-2 outline-offset-2 outline-accent-primary;
 }
+
+/* Accessibility: respect user preference for reduced motion.
+ * Gates all animations: toast slide-in, loading spinner rotation,
+ * skeleton shimmer (animate-pulse-slow), advisor panel slide-in,
+ * and any other CSS transitions/animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
