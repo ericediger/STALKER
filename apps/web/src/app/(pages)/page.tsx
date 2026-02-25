@@ -8,6 +8,8 @@ import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { PortfolioChart } from "@/components/dashboard/PortfolioChart";
 import { WindowSelector } from "@/components/dashboard/WindowSelector";
 import { HoldingsTable } from "@/components/holdings/HoldingsTable";
+import { AddInstrumentModal } from "@/components/instruments/AddInstrumentModal";
+import { Button } from "@/components/ui/Button";
 import { usePortfolioSnapshot } from "@/lib/hooks/usePortfolioSnapshot";
 import { usePortfolioTimeseries } from "@/lib/hooks/usePortfolioTimeseries";
 import { useHoldings } from "@/lib/hooks/useHoldings";
@@ -23,10 +25,15 @@ export default function DashboardPage() {
   const { data: timeseries, isLoading: timeseriesLoading } = usePortfolioTimeseries(selectedWindow);
   const { data: holdings, isLoading: holdingsLoading } = useHoldings();
   const { data: instruments, isLoading: instrumentsLoading } = useInstruments();
+  const [showAddInstrument, setShowAddInstrument] = useState(false);
 
   const handleRowClick = useCallback((symbol: string) => {
     router.push(`/holdings/${encodeURIComponent(symbol)}`);
   }, [router]);
+
+  const handleInstrumentAdded = useCallback(() => {
+    window.location.reload();
+  }, []);
 
   // Show empty state only when no instruments exist at all
   const hasInstruments = instruments !== null && instruments.length > 0;
@@ -60,7 +67,16 @@ export default function DashboardPage() {
     <div className="space-y-6 py-4">
       <div className="flex items-center justify-between">
         <HeroMetric snapshot={snapshot} isLoading={snapshotLoading} />
-        <WindowSelector value={selectedWindow} onChange={setSelectedWindow} />
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowAddInstrument(true)}
+          >
+            + Add Instrument
+          </Button>
+          <WindowSelector value={selectedWindow} onChange={setSelectedWindow} />
+        </div>
       </div>
 
       <PortfolioChart timeseries={timeseries} isLoading={timeseriesLoading} />
@@ -74,6 +90,12 @@ export default function DashboardPage() {
       ) : displayHoldings.length > 0 ? (
         <HoldingsTable holdings={displayHoldings} compact onRowClick={handleRowClick} />
       ) : null}
+
+      <AddInstrumentModal
+        open={showAddInstrument}
+        onClose={() => setShowAddInstrument(false)}
+        onSuccess={handleInstrumentAdded}
+      />
     </div>
   );
 }
