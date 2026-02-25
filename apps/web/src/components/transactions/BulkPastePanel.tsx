@@ -72,8 +72,12 @@ export function BulkPastePanel({ onImportSuccess }: BulkPastePanelProps) {
     const result = await submit(apiRows);
 
     if (result && result.inserted > 0) {
+      const autoCreated = (result as { autoCreatedInstruments?: string[] }).autoCreatedInstruments ?? [];
+      const autoMsg = autoCreated.length > 0
+        ? ` Auto-added: ${autoCreated.join(", ")}.`
+        : "";
       toast({
-        message: `Imported ${result.inserted} transaction${result.inserted > 1 ? "s" : ""}. Portfolio snapshots rebuilt.`,
+        message: `Imported ${result.inserted} transaction${result.inserted > 1 ? "s" : ""}.${autoMsg} Backfilling price history...`,
         variant: "success",
       });
       // Reset state

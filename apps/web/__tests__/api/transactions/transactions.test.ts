@@ -27,6 +27,14 @@ vi.mock('@/lib/snapshot-rebuild-helper', () => ({
   triggerSnapshotRebuild: vi.fn().mockResolvedValue(undefined),
 }));
 
+const { mockFindOrCreateInstrument } = vi.hoisted(() => {
+  return { mockFindOrCreateInstrument: vi.fn() };
+});
+
+vi.mock('@/lib/auto-create-instrument', () => ({
+  findOrCreateInstrument: mockFindOrCreateInstrument,
+}));
+
 import { POST, GET } from '@/app/api/transactions/route';
 import { GET as GET_BY_ID, PUT, DELETE } from '@/app/api/transactions/[id]/route';
 
@@ -178,14 +186,22 @@ describe('Transaction CRUD API', () => {
       expect(body.details.deficitQuantity).toBe('10');
     });
 
-    it('returns 404 when instrument does not exist', async () => {
+    it('auto-creates instrument when instrumentId is not found', async () => {
+      const autoCreated = mockInstrument({ id: 'inst-auto', symbol: 'INST-1', name: 'Auto Created' });
       mockPrismaClient.instrument.findUnique.mockResolvedValue(null);
+      mockFindOrCreateInstrument.mockResolvedValue(autoCreated);
+      mockPrismaClient.transaction.findMany.mockResolvedValue([]);
+      mockPrismaClient.transaction.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
 
       const req = makeJsonRequest('/api/transactions', VALID_BUY);
       const res = await POST(req);
 
-      expect(res.status).toBe(404);
-      expect((await res.json()).error).toBe('NOT_FOUND');
+      expect(res.status).toBe(201);
+      expect(mockFindOrCreateInstrument).toHaveBeenCalledWith('inst-1');
     });
 
     it('returns 400 for invalid input (missing quantity)', async () => {

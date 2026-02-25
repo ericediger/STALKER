@@ -27,6 +27,14 @@ vi.mock('@/lib/snapshot-rebuild-helper', () => ({
   triggerSnapshotRebuild: vi.fn().mockResolvedValue(undefined),
 }));
 
+const { mockFindOrCreateInstrument } = vi.hoisted(() => {
+  return { mockFindOrCreateInstrument: vi.fn() };
+});
+
+vi.mock('@/lib/auto-create-instrument', () => ({
+  findOrCreateInstrument: mockFindOrCreateInstrument,
+}));
+
 import { POST } from '@/app/api/transactions/bulk/route';
 
 /* -------------------------------------------------------------------------- */
@@ -93,9 +101,17 @@ describe('POST /api/transactions/bulk', () => {
     expect(mockPrismaClient.transaction.create).toHaveBeenCalledTimes(5);
   });
 
-  it('rejects batch when 2 of 5 rows have unknown symbols', async () => {
+  it('auto-creates instruments for unknown symbols in batch', async () => {
     // Only AAPL exists in database
     mockPrismaClient.instrument.findMany.mockResolvedValue([AAPL_INSTRUMENT]);
+    mockPrismaClient.transaction.findMany.mockResolvedValue([]);
+    mockPrismaClient.transaction.create.mockResolvedValue(undefined);
+
+    const XYZ_INSTRUMENT = mockInstrument({ id: 'inst-xyz', symbol: 'XYZ', name: 'XYZ Corp' });
+    const FAKE_INSTRUMENT = mockInstrument({ id: 'inst-fake', symbol: 'FAKE', name: 'Fake Inc' });
+    mockFindOrCreateInstrument
+      .mockResolvedValueOnce(XYZ_INSTRUMENT)
+      .mockResolvedValueOnce(FAKE_INSTRUMENT);
 
     const req = makeJsonRequest({
       rows: [
@@ -110,15 +126,12 @@ describe('POST /api/transactions/bulk', () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(422);
-    expect(body.inserted).toBe(0);
-    expect(body.errors).toHaveLength(2);
-    expect(body.errors[0].symbol).toBe('XYZ');
-    expect(body.errors[0].error).toContain('Unknown symbol');
-    expect(body.errors[1].symbol).toBe('FAKE');
-    expect(body.errors[1].error).toContain('Unknown symbol');
-    // Verify no transactions were created
-    expect(mockPrismaClient.transaction.create).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(body.inserted).toBe(5);
+    expect(body.autoCreatedInstruments).toEqual(['XYZ', 'FAKE']);
+    expect(mockFindOrCreateInstrument).toHaveBeenCalledTimes(2);
+    expect(mockFindOrCreateInstrument).toHaveBeenCalledWith('XYZ');
+    expect(mockFindOrCreateInstrument).toHaveBeenCalledWith('FAKE');
   });
 
   it('rejects batch when SELL exceeds cumulative BUYs', async () => {

@@ -6,6 +6,7 @@ import { generateUlid, toDecimal } from '@stalker/shared';
 import type { Transaction as AnalyticsTransaction } from '@stalker/shared';
 import { validateTransactionSet } from '@stalker/analytics';
 import { triggerSnapshotRebuild } from '@/lib/snapshot-rebuild-helper';
+import { findOrCreateInstrument } from '@/lib/auto-create-instrument';
 
 function prismaToAnalyticsTransaction(
   tx: { id: string; instrumentId: string; type: string; quantity: { toString(): string }; price: { toString(): string }; fees: { toString(): string }; tradeAt: Date; notes: string | null; createdAt: Date; updatedAt: Date },
@@ -61,14 +62,23 @@ export async function POST(request: NextRequest): Promise<Response> {
       });
     }
 
-    const { instrumentId, type, quantity, price, tradeAt, fees, notes } = parsed.data;
+    const { instrumentId: rawInstrumentId, type, quantity, price, tradeAt, fees, notes } = parsed.data;
 
-    // Verify instrument exists
-    const instrument = await prisma.instrument.findUnique({
-      where: { id: instrumentId },
+    // Resolve instrument: if instrumentId looks like a symbol (short uppercase string, no ULID chars),
+    // try to find or create by symbol. Otherwise look up by ID.
+    let instrumentId = rawInstrumentId;
+    let instrument: { id: string; symbol: string } | null = null;
+
+    // Check if it's an existing instrument ID first
+    instrument = await prisma.instrument.findUnique({
+      where: { id: rawInstrumentId },
     });
+
     if (!instrument) {
-      return apiError(404, 'NOT_FOUND', `Instrument '${instrumentId}' not found`);
+      // Try treating it as a symbol — auto-create if needed
+      const bySymbol = await findOrCreateInstrument(rawInstrumentId);
+      instrument = bySymbol;
+      instrumentId = bySymbol.id;
     }
 
     // Build the prospective transaction for validation

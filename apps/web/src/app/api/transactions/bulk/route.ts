@@ -6,6 +6,7 @@ import { generateUlid, toDecimal } from '@stalker/shared';
 import type { Transaction as AnalyticsTransaction } from '@stalker/shared';
 import { validateTransactionSet } from '@stalker/analytics';
 import { triggerSnapshotRebuild } from '@/lib/snapshot-rebuild-helper';
+import { findOrCreateInstrument } from '@/lib/auto-create-instrument';
 
 /* -------------------------------------------------------------------------- */
 /*  Request validation schema                                                  */
@@ -61,30 +62,20 @@ export async function POST(request: NextRequest): Promise<Response> {
       return Response.json({ inserted: 0, errors: [], earliestDate: null });
     }
 
-    // --- Step 1: Resolve symbols to instruments ---
+    // --- Step 1: Resolve symbols to instruments (auto-create if missing) ---
     const uniqueSymbols = [...new Set(rows.map((r) => r.symbol.toUpperCase()))];
-    const instruments = await prisma.instrument.findMany({
+    const existingInstruments = await prisma.instrument.findMany({
       where: { symbol: { in: uniqueSymbols } },
     });
-    const symbolToInstrument = new Map(instruments.map((inst) => [inst.symbol, inst]));
+    const symbolToInstrument = new Map(existingInstruments.map((inst) => [inst.symbol, inst]));
 
-    // Check for unknown symbols (row-level errors)
-    const rowErrors: Array<{ lineNumber: number; symbol: string; error: string }> = [];
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i]!;
-      const symbol = row.symbol.toUpperCase();
-      if (!symbolToInstrument.has(symbol)) {
-        rowErrors.push({
-          lineNumber: i + 1,
-          symbol,
-          error: `Unknown symbol: ${symbol}. Add the instrument first.`,
-        });
-      }
-    }
-
-    // If any symbols are unknown, reject the entire batch (AD-S10c)
-    if (rowErrors.length > 0) {
-      return Response.json({ inserted: 0, errors: rowErrors, earliestDate: null }, { status: 422 });
+    // Auto-create any missing instruments
+    const missingSymbols = uniqueSymbols.filter((s) => !symbolToInstrument.has(s));
+    const autoCreated: string[] = [];
+    for (const symbol of missingSymbols) {
+      const instrument = await findOrCreateInstrument(symbol);
+      symbolToInstrument.set(instrument.symbol, instrument);
+      autoCreated.push(instrument.symbol);
     }
 
     // --- Step 2: Build prospective transactions ---
@@ -174,7 +165,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           (t) => t.id === validation.offendingTransaction.id,
         );
         const symbol = offendingNew?.symbol
-          ?? instruments.find((inst) => inst.id === instrumentId)?.symbol
+          ?? [...symbolToInstrument.values()].find((inst) => inst.id === instrumentId)?.symbol
           ?? 'UNKNOWN';
 
         return Response.json({
@@ -225,6 +216,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       inserted: rows.length,
       errors: [],
       earliestDate: earliestTradeAt.toISOString(),
+      autoCreatedInstruments: autoCreated,
     }, { status: 201 });
   } catch (err: unknown) {
     console.error('POST /api/transactions/bulk error:', err);
