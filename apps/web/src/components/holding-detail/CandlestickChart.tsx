@@ -90,6 +90,8 @@ export function CandlestickChart({ symbol }: CandlestickChartProps) {
     }
   }, [bars, chart]);
 
+  const hasData = bars.length > 0;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -100,27 +102,26 @@ export function CandlestickChart({ symbol }: CandlestickChartProps) {
           onChange={(v) => setRange(v as ChartRange)}
         />
       </div>
-      {isLoading && !bars.length ? (
-        <Skeleton height={`${CHART_HEIGHT}px`} className="w-full rounded-lg" />
-      ) : (
-        <div className="relative">
+      <div className="relative">
+        {/* Always render the container so useChart can initialize on mount */}
+        <div
+          ref={containerRef}
+          style={{ height: CHART_HEIGHT }}
+          className={isLoading || !hasData ? "invisible absolute inset-0" : ""}
+        />
+        {isLoading && !hasData ? (
+          <Skeleton height={`${CHART_HEIGHT}px`} className="w-full rounded-lg" />
+        ) : !hasData ? (
           <div
-            ref={containerRef}
+            className="flex items-center justify-center bg-bg-secondary border border-border-primary rounded-lg"
             style={{ height: CHART_HEIGHT }}
-            className={bars.length > 0 ? "" : "invisible"}
-          />
-          {bars.length === 0 && (
-            <div
-              className="flex items-center justify-center bg-bg-secondary border border-border-primary rounded-lg"
-              style={{ height: CHART_HEIGHT }}
-            >
-              <p className="text-text-tertiary text-sm">
-                No data for selected range
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+          >
+            <p className="text-text-tertiary text-sm">
+              No data for selected range
+            </p>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

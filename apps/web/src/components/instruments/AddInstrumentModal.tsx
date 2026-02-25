@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -28,11 +28,9 @@ const TYPE_OPTIONS = [
 
 function mapExchange(exchange: string): string {
   const upper = exchange.toUpperCase();
-  // Normalize common exchange names to our options
   if (upper.includes("NASDAQ") || upper === "NMS" || upper === "NGS" || upper === "NAS") return "NASDAQ";
   if (upper.includes("NYSE") || upper === "NYQ" || upper === "PCX" || upper === "AMEX" || upper === "ARCA" || upper === "BATS") return "NYSE";
   if (upper.includes("CBOE") || upper === "BZX") return "CBOE";
-  // Default to NYSE for unknown exchanges
   return "NYSE";
 }
 
@@ -42,6 +40,14 @@ function mapType(type: string | undefined): string {
   if (upper === "ETF" || upper.includes("ETF")) return "ETF";
   if (upper === "FUND" || upper.includes("FUND")) return "FUND";
   return "STOCK";
+}
+
+function todayDateString(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export function AddInstrumentModal({
@@ -59,6 +65,17 @@ export function AddInstrumentModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedFromSearch, setSelectedFromSearch] = useState(false);
 
+  // Initial purchase fields (optional)
+  const [buyQty, setBuyQty] = useState("");
+  const [buyPrice, setBuyPrice] = useState("");
+  const [buyDate, setBuyDate] = useState(todayDateString());
+  const [buyFees, setBuyFees] = useState("");
+  const [priceAutoFilled, setPriceAutoFilled] = useState(false);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const userEditedBuyPrice = useRef(false);
+
+  const hasBuyData = buyQty.trim() !== "" || buyPrice.trim() !== "";
+
   const resetForm = useCallback(() => {
     setSearchQuery("");
     setSymbol("");
@@ -67,6 +84,13 @@ export function AddInstrumentModal({
     setExchange("NYSE");
     setErrors({});
     setSelectedFromSearch(false);
+    setBuyQty("");
+    setBuyPrice("");
+    setBuyDate(todayDateString());
+    setBuyFees("");
+    setPriceAutoFilled(false);
+    setFetchingPrice(false);
+    userEditedBuyPrice.current = false;
   }, []);
 
   const handleClose = useCallback(() => {
@@ -81,7 +105,43 @@ export function AddInstrumentModal({
     setType(mapType(result.type));
     setSelectedFromSearch(true);
     setErrors({});
+    // Reset buy price auto-fill for new instrument
+    userEditedBuyPrice.current = false;
+    setBuyPrice("");
+    setPriceAutoFilled(false);
   }, []);
+
+  // Auto-fill buy price from historical close when symbol and date are set
+  useEffect(() => {
+    if (userEditedBuyPrice.current) return;
+    if (!symbol || !buyDate) return;
+
+    let cancelled = false;
+    setFetchingPrice(true);
+
+    fetch(
+      `/api/market/history?symbol=${encodeURIComponent(symbol)}&startDate=${buyDate}&endDate=${buyDate}`,
+    )
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json() as Promise<Array<{ close: string }>>;
+      })
+      .then((bars) => {
+        if (cancelled) return;
+        setFetchingPrice(false);
+        if (bars && bars.length > 0 && bars[0]?.close) {
+          setBuyPrice(bars[0]!.close);
+          setPriceAutoFilled(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFetchingPrice(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol, buyDate]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -90,6 +150,17 @@ export function AddInstrumentModal({
       const newErrors: Record<string, string> = {};
       if (!symbol.trim()) newErrors.symbol = "Symbol is required";
       if (!name.trim()) newErrors.name = "Name is required";
+
+      // Validate buy fields only if user entered partial data
+      if (hasBuyData) {
+        if (!buyQty.trim() || isNaN(Number(buyQty)) || Number(buyQty) <= 0) {
+          newErrors.buyQty = "Enter a valid quantity";
+        }
+        if (!buyPrice.trim() || isNaN(Number(buyPrice)) || Number(buyPrice) <= 0) {
+          newErrors.buyPrice = "Enter a valid price";
+        }
+        if (!buyDate) newErrors.buyDate = "Date is required";
+      }
 
       if (Object.keys(newErrors).length > 0) {
         setErrors(newErrors);
@@ -100,6 +171,7 @@ export function AddInstrumentModal({
       setErrors({});
 
       try {
+        // Step 1: Create the instrument
         const res = await fetch("/api/instruments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -123,10 +195,43 @@ export function AddInstrumentModal({
           throw new Error(data.message ?? `HTTP ${res.status}`);
         }
 
-        toast({
-          message: `${symbol.toUpperCase()} added. Backfilling price history...`,
-          variant: "success",
-        });
+        const instrument = (await res.json()) as { id: string };
+
+        // Step 2: If buy fields are filled, create the initial transaction
+        if (hasBuyData && buyQty.trim() && buyPrice.trim()) {
+          const txRes = await fetch("/api/transactions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              instrumentId: instrument.id,
+              type: "BUY",
+              quantity: buyQty.trim(),
+              price: buyPrice.trim(),
+              fees: buyFees.trim() || "0",
+              tradeAt: `${buyDate}T12:00:00.000Z`,
+              notes: "",
+            }),
+          });
+
+          if (txRes.ok) {
+            toast({
+              message: `${symbol.toUpperCase()} added with initial BUY. Backfilling price history...`,
+              variant: "success",
+            });
+          } else {
+            // Instrument was created but transaction failed — still show success for instrument
+            toast({
+              message: `${symbol.toUpperCase()} added. Transaction could not be created — add it manually.`,
+              variant: "warning",
+            });
+          }
+        } else {
+          toast({
+            message: `${symbol.toUpperCase()} added. Backfilling price history...`,
+            variant: "success",
+          });
+        }
+
         handleClose();
         onSuccess();
       } catch (err: unknown) {
@@ -137,7 +242,7 @@ export function AddInstrumentModal({
         setSubmitting(false);
       }
     },
-    [symbol, name, type, exchange, toast, handleClose, onSuccess],
+    [symbol, name, type, exchange, hasBuyData, buyQty, buyPrice, buyDate, buyFees, toast, handleClose, onSuccess],
   );
 
   return (
@@ -149,6 +254,7 @@ export function AddInstrumentModal({
           onSelect={handleSearchSelect}
         />
 
+        {/* Instrument details */}
         <div className="border-t border-border-primary pt-4">
           <p className="text-sm text-text-secondary mb-3">
             {selectedFromSearch
@@ -207,6 +313,77 @@ export function AddInstrumentModal({
           </div>
         </div>
 
+        {/* Initial Purchase (optional) */}
+        <div className="border-t border-border-primary pt-4">
+          <p className="text-sm text-text-secondary mb-3">
+            Initial purchase (optional):
+          </p>
+          <div className="space-y-3">
+            <Input
+              label="Trade Date"
+              type="date"
+              value={buyDate}
+              onChange={(e) => {
+                setBuyDate(e.target.value);
+                userEditedBuyPrice.current = false;
+                setPriceAutoFilled(false);
+              }}
+              error={errors.buyDate}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Shares"
+                type="text"
+                inputMode="decimal"
+                placeholder="0"
+                value={buyQty}
+                onChange={(e) => {
+                  setBuyQty(e.target.value);
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.buyQty;
+                    return next;
+                  });
+                }}
+                error={errors.buyQty}
+              />
+              <div>
+                <Input
+                  label="Price per share"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={fetchingPrice ? "Loading..." : "0.00"}
+                  value={buyPrice}
+                  onChange={(e) => {
+                    setBuyPrice(e.target.value);
+                    userEditedBuyPrice.current = true;
+                    setPriceAutoFilled(false);
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.buyPrice;
+                      return next;
+                    });
+                  }}
+                  error={errors.buyPrice}
+                />
+                {priceAutoFilled && (
+                  <p className="text-xs text-text-tertiary mt-1">
+                    Auto-filled from closing price
+                  </p>
+                )}
+              </div>
+            </div>
+            <Input
+              label="Fees"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={buyFees}
+              onChange={(e) => setBuyFees(e.target.value)}
+            />
+          </div>
+        </div>
+
         <Button
           type="submit"
           variant="primary"
@@ -214,7 +391,7 @@ export function AddInstrumentModal({
           loading={submitting}
           disabled={submitting}
         >
-          Add Instrument
+          {hasBuyData ? "Add Instrument + Buy" : "Add Instrument"}
         </Button>
       </form>
     </Modal>

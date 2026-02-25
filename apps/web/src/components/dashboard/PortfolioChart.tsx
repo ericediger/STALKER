@@ -57,20 +57,19 @@ export function PortfolioChart({ timeseries, isLoading }: PortfolioChartProps) {
     }
   }, [timeseries, chart]);
 
-  if (isLoading) {
-    return <Skeleton height={`${CHART_HEIGHT}px`} className="w-full rounded-lg" />;
-  }
-
   const hasData = timeseries.length > 0;
 
   return (
     <div className="relative">
+      {/* Always render the container so useChart can initialize on mount */}
       <div
         ref={containerRef}
         style={{ height: CHART_HEIGHT }}
-        className={hasData ? "" : "invisible"}
+        className={isLoading || !hasData ? "invisible absolute inset-0" : ""}
       />
-      {!hasData && (
+      {isLoading ? (
+        <Skeleton height={`${CHART_HEIGHT}px`} className="w-full rounded-lg" />
+      ) : !hasData ? (
         <div
           className="flex items-center justify-center bg-bg-secondary border border-border-primary rounded-lg"
           style={{ height: CHART_HEIGHT }}
@@ -79,7 +78,7 @@ export function PortfolioChart({ timeseries, isLoading }: PortfolioChartProps) {
             No data for selected window
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

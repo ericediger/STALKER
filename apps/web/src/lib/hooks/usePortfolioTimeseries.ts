@@ -22,7 +22,8 @@ export function usePortfolioTimeseries(window: WindowOption): UsePortfolioTimese
 
     const range = getWindowDateRange(window);
     const params = new URLSearchParams();
-    if (range.startDate) params.set('startDate', range.startDate);
+    // API requires both startDate and endDate; for ALL, use a very early date
+    params.set('startDate', range.startDate ?? '1970-01-01');
     params.set('endDate', range.endDate);
 
     fetch(`/api/portfolio/timeseries?${params.toString()}`)
