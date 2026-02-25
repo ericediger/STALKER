@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
-import { SymbolSearchInput } from "./SymbolSearchInput";
+import { SymbolSearchInput, type SearchResult } from "./SymbolSearchInput";
 
 interface AddInstrumentModalProps {
   open: boolean;
@@ -26,6 +26,24 @@ const TYPE_OPTIONS = [
   { label: "Fund", value: "FUND" },
 ];
 
+function mapExchange(exchange: string): string {
+  const upper = exchange.toUpperCase();
+  // Normalize common exchange names to our options
+  if (upper.includes("NASDAQ") || upper === "NMS" || upper === "NGS" || upper === "NAS") return "NASDAQ";
+  if (upper.includes("NYSE") || upper === "NYQ" || upper === "PCX" || upper === "AMEX" || upper === "ARCA" || upper === "BATS") return "NYSE";
+  if (upper.includes("CBOE") || upper === "BZX") return "CBOE";
+  // Default to NYSE for unknown exchanges
+  return "NYSE";
+}
+
+function mapType(type: string | undefined): string {
+  if (!type) return "STOCK";
+  const upper = type.toUpperCase();
+  if (upper === "ETF" || upper.includes("ETF")) return "ETF";
+  if (upper === "FUND" || upper.includes("FUND")) return "FUND";
+  return "STOCK";
+}
+
 export function AddInstrumentModal({
   open,
   onClose,
@@ -39,6 +57,7 @@ export function AddInstrumentModal({
   const [exchange, setExchange] = useState("NYSE");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedFromSearch, setSelectedFromSearch] = useState(false);
 
   const resetForm = useCallback(() => {
     setSearchQuery("");
@@ -47,12 +66,22 @@ export function AddInstrumentModal({
     setType("STOCK");
     setExchange("NYSE");
     setErrors({});
+    setSelectedFromSearch(false);
   }, []);
 
   const handleClose = useCallback(() => {
     resetForm();
     onClose();
   }, [resetForm, onClose]);
+
+  const handleSearchSelect = useCallback((result: SearchResult) => {
+    setSymbol(result.symbol);
+    setName(result.name);
+    setExchange(mapExchange(result.exchange));
+    setType(mapType(result.type));
+    setSelectedFromSearch(true);
+    setErrors({});
+  }, []);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -95,7 +124,7 @@ export function AddInstrumentModal({
         }
 
         toast({
-          message: `${symbol.toUpperCase()} added successfully`,
+          message: `${symbol.toUpperCase()} added. Backfilling price history...`,
           variant: "success",
         });
         handleClose();
@@ -117,11 +146,14 @@ export function AddInstrumentModal({
         <SymbolSearchInput
           value={searchQuery}
           onChange={setSearchQuery}
+          onSelect={handleSearchSelect}
         />
 
         <div className="border-t border-border-primary pt-4">
           <p className="text-sm text-text-secondary mb-3">
-            Enter instrument details manually:
+            {selectedFromSearch
+              ? "Confirm instrument details:"
+              : "Or enter instrument details manually:"}
           </p>
 
           <div className="space-y-3">
@@ -132,6 +164,7 @@ export function AddInstrumentModal({
               value={symbol}
               onChange={(e) => {
                 setSymbol(e.target.value);
+                setSelectedFromSearch(false);
                 setErrors((prev) => {
                   const next = { ...prev };
                   delete next.symbol;

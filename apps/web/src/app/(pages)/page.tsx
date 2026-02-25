@@ -11,8 +11,10 @@ import { HoldingsTable } from "@/components/holdings/HoldingsTable";
 import { usePortfolioSnapshot } from "@/lib/hooks/usePortfolioSnapshot";
 import { usePortfolioTimeseries } from "@/lib/hooks/usePortfolioTimeseries";
 import { useHoldings } from "@/lib/hooks/useHoldings";
+import { useInstruments } from "@/lib/hooks/useInstruments";
 import { DEFAULT_WINDOW, type WindowOption } from "@/lib/window-utils";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { Holding } from "@/lib/holdings-utils";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -20,20 +22,39 @@ export default function DashboardPage() {
   const { data: snapshot, isLoading: snapshotLoading } = usePortfolioSnapshot(selectedWindow);
   const { data: timeseries, isLoading: timeseriesLoading } = usePortfolioTimeseries(selectedWindow);
   const { data: holdings, isLoading: holdingsLoading } = useHoldings();
+  const { data: instruments, isLoading: instrumentsLoading } = useInstruments();
 
   const handleRowClick = useCallback((symbol: string) => {
     router.push(`/holdings/${encodeURIComponent(symbol)}`);
   }, [router]);
 
-  // Show empty state when not loading and no holdings
-  const isEmpty =
-    !snapshotLoading &&
-    snapshot !== null &&
-    snapshot.holdings.length === 0;
+  // Show empty state only when no instruments exist at all
+  const hasInstruments = instruments !== null && instruments.length > 0;
+  const isStillLoading = snapshotLoading || instrumentsLoading;
+  const isEmpty = !isStillLoading && !hasInstruments;
 
   if (isEmpty) {
     return <DashboardEmpty />;
   }
+
+  // Build display holdings: use real holdings if available, otherwise
+  // create zero-value entries from instruments so the user can see
+  // which instruments are tracked even before adding transactions.
+  const displayHoldings: Holding[] =
+    holdings && holdings.length > 0
+      ? holdings
+      : (instruments ?? []).map((inst) => ({
+          symbol: inst.symbol,
+          name: inst.name,
+          instrumentId: inst.id,
+          qty: "0",
+          price: "0",
+          value: "0",
+          costBasis: "0",
+          unrealizedPnl: "0",
+          unrealizedPnlPct: "0",
+          allocation: "0",
+        }));
 
   return (
     <div className="space-y-6 py-4">
@@ -48,10 +69,10 @@ export default function DashboardPage() {
         <SummaryCards snapshot={snapshot} isLoading={snapshotLoading} />
       </div>
 
-      {holdingsLoading ? (
+      {holdingsLoading || instrumentsLoading ? (
         <Skeleton height="200px" className="w-full rounded-lg" />
-      ) : holdings && holdings.length > 0 ? (
-        <HoldingsTable holdings={holdings} compact onRowClick={handleRowClick} />
+      ) : displayHoldings.length > 0 ? (
+        <HoldingsTable holdings={displayHoldings} compact onRowClick={handleRowClick} />
       ) : null}
     </div>
   );

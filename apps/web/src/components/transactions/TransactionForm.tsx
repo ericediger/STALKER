@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -72,6 +72,10 @@ export function TransactionForm({
   const [sellError, setSellError] =
     useState<SellValidationErrorData | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [priceAutoFilled, setPriceAutoFilled] = useState(false);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  // Track whether user has manually edited the price field
+  const userEditedPrice = useRef(false);
 
   const updateField = useCallback(
     (field: keyof TransactionFormFields, value: string) => {
@@ -82,9 +86,63 @@ export function TransactionForm({
         return next;
       });
       setSellError(null);
+      if (field === "price") {
+        userEditedPrice.current = true;
+        setPriceAutoFilled(false);
+      }
     },
     [],
   );
+
+  // Auto-fill price from historical close when instrument and date change
+  useEffect(() => {
+    // Don't auto-fill in edit mode or if user manually entered a price
+    if (mode === "edit") return;
+    if (userEditedPrice.current) return;
+
+    const instrumentId = fields.instrumentId;
+    const tradeDate = fields.tradeAt;
+
+    if (!instrumentId || !tradeDate) return;
+
+    // Find the instrument symbol
+    const instrument = instruments.find((i) => i.id === instrumentId);
+    if (!instrument) return;
+
+    let cancelled = false;
+    setFetchingPrice(true);
+
+    fetch(
+      `/api/market/history?symbol=${encodeURIComponent(instrument.symbol)}&startDate=${tradeDate}&endDate=${tradeDate}`,
+    )
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json() as Promise<Array<{ close: string }>>;
+      })
+      .then((bars) => {
+        if (cancelled) return;
+        setFetchingPrice(false);
+        if (bars && bars.length > 0 && bars[0]?.close) {
+          setFields((prev) => ({ ...prev, price: bars[0]!.close }));
+          setPriceAutoFilled(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFetchingPrice(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fields.instrumentId, fields.tradeAt, instruments, mode]);
+
+  // Reset userEditedPrice when instrument changes
+  useEffect(() => {
+    if (mode === "create") {
+      userEditedPrice.current = false;
+      setPriceAutoFilled(false);
+    }
+  }, [fields.instrumentId, mode]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -186,6 +244,18 @@ export function TransactionForm({
         )}
       </div>
 
+      <Input
+        label="Trade Date"
+        type="date"
+        value={fields.tradeAt}
+        onChange={(e) => {
+          // Reset price auto-fill when date changes
+          userEditedPrice.current = false;
+          updateField("tradeAt", e.target.value);
+        }}
+        error={errors.tradeAt}
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <Input
           label="Shares"
@@ -196,24 +266,23 @@ export function TransactionForm({
           onChange={(e) => updateField("quantity", e.target.value)}
           error={errors.quantity}
         />
-        <Input
-          label="Price per share"
-          type="text"
-          inputMode="decimal"
-          placeholder="0.00"
-          value={fields.price}
-          onChange={(e) => updateField("price", e.target.value)}
-          error={errors.price}
-        />
+        <div>
+          <Input
+            label="Price per share"
+            type="text"
+            inputMode="decimal"
+            placeholder={fetchingPrice ? "Loading..." : "0.00"}
+            value={fields.price}
+            onChange={(e) => updateField("price", e.target.value)}
+            error={errors.price}
+          />
+          {priceAutoFilled && (
+            <p className="text-xs text-text-tertiary mt-1">
+              Auto-filled from closing price. Edit to override.
+            </p>
+          )}
+        </div>
       </div>
-
-      <Input
-        label="Trade Date"
-        type="date"
-        value={fields.tradeAt}
-        onChange={(e) => updateField("tradeAt", e.target.value)}
-        error={errors.tradeAt}
-      />
 
       <div className="grid grid-cols-2 gap-4">
         <Input
