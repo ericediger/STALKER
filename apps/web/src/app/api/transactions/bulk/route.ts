@@ -6,7 +6,7 @@ import { generateUlid, toDecimal } from '@stalker/shared';
 import type { Transaction as AnalyticsTransaction } from '@stalker/shared';
 import { validateTransactionSet } from '@stalker/analytics';
 import { triggerSnapshotRebuild } from '@/lib/snapshot-rebuild-helper';
-import { findOrCreateInstrument } from '@/lib/auto-create-instrument';
+import { findOrCreateInstrument, triggerBackfill } from '@/lib/auto-create-instrument';
 
 /* -------------------------------------------------------------------------- */
 /*  Request validation schema                                                  */
@@ -69,13 +69,15 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
     const symbolToInstrument = new Map(existingInstruments.map((inst) => [inst.symbol, inst]));
 
-    // Auto-create any missing instruments
+    // Auto-create any missing instruments (skip backfill to avoid SQLite contention)
     const missingSymbols = uniqueSymbols.filter((s) => !symbolToInstrument.has(s));
     const autoCreated: string[] = [];
+    const newInstruments: Array<{ id: string; symbol: string; name: string; type: string; currency: string; exchange: string; exchangeTz: string; providerSymbolMap: string; firstBarDate: string | null; createdAt: Date; updatedAt: Date }> = [];
     for (const symbol of missingSymbols) {
-      const instrument = await findOrCreateInstrument(symbol);
+      const instrument = await findOrCreateInstrument(symbol, true); // skip backfill
       symbolToInstrument.set(instrument.symbol, instrument);
       autoCreated.push(instrument.symbol);
+      newInstruments.push(instrument);
     }
 
     // --- Step 2: Build prospective transactions ---
@@ -203,14 +205,30 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
     });
 
-    // --- Step 6: Trigger snapshot rebuild from earliest tradeAt ---
-    // triggerSnapshotRebuild already wraps in $transaction internally (AD-S10a)
+    // --- Step 6: Trigger snapshot rebuild from earliest tradeAt (fire-and-forget) ---
+    // For bulk imports with many instruments, the rebuild can take minutes.
+    // We don't block the response — the dashboard will trigger a rebuild if needed.
     const earliestTradeAt = prospectiveTransactions.reduce(
       (earliest, t) => (t.tradeAt < earliest ? t.tradeAt : earliest),
       prospectiveTransactions[0]!.tradeAt,
     );
 
-    await triggerSnapshotRebuild(earliestTradeAt);
+    triggerSnapshotRebuild(earliestTradeAt).catch((err: unknown) => {
+      console.error('Snapshot rebuild after bulk import failed:', err);
+    });
+
+    // --- Step 7: Trigger backfills for auto-created instruments (fire-and-forget, sequential) ---
+    if (newInstruments.length > 0) {
+      (async () => {
+        for (const inst of newInstruments) {
+          try {
+            await triggerBackfill(inst);
+          } catch (err: unknown) {
+            console.error(`Backfill failed for ${inst.symbol}:`, err);
+          }
+        }
+      })().catch(() => { /* swallow */ });
+    }
 
     return Response.json({
       inserted: rows.length,
@@ -219,7 +237,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       autoCreatedInstruments: autoCreated,
     }, { status: 201 });
   } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error('POST /api/transactions/bulk error:', err);
-    return apiError(500, 'INTERNAL_ERROR', 'Failed to process bulk transaction import');
+    return apiError(500, 'INTERNAL_ERROR', `Bulk import failed: ${msg}`);
   }
 }

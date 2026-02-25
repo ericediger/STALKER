@@ -27,12 +27,16 @@ vi.mock('@/lib/snapshot-rebuild-helper', () => ({
   triggerSnapshotRebuild: vi.fn().mockResolvedValue(undefined),
 }));
 
-const { mockFindOrCreateInstrument } = vi.hoisted(() => {
-  return { mockFindOrCreateInstrument: vi.fn() };
+const { mockFindOrCreateInstrument, mockTriggerBackfill } = vi.hoisted(() => {
+  return {
+    mockFindOrCreateInstrument: vi.fn(),
+    mockTriggerBackfill: vi.fn().mockResolvedValue(undefined),
+  };
 });
 
 vi.mock('@/lib/auto-create-instrument', () => ({
   findOrCreateInstrument: mockFindOrCreateInstrument,
+  triggerBackfill: mockTriggerBackfill,
 }));
 
 import { POST } from '@/app/api/transactions/bulk/route';
@@ -130,8 +134,8 @@ describe('POST /api/transactions/bulk', () => {
     expect(body.inserted).toBe(5);
     expect(body.autoCreatedInstruments).toEqual(['XYZ', 'FAKE']);
     expect(mockFindOrCreateInstrument).toHaveBeenCalledTimes(2);
-    expect(mockFindOrCreateInstrument).toHaveBeenCalledWith('XYZ');
-    expect(mockFindOrCreateInstrument).toHaveBeenCalledWith('FAKE');
+    expect(mockFindOrCreateInstrument).toHaveBeenCalledWith('XYZ', true);
+    expect(mockFindOrCreateInstrument).toHaveBeenCalledWith('FAKE', true);
   });
 
   it('rejects batch when SELL exceeds cumulative BUYs', async () => {

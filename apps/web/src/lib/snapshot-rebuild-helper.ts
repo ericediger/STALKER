@@ -89,5 +89,5 @@ export async function triggerSnapshotRebuild(affectedDate: Date): Promise<void> 
       snapshotStore: new PrismaSnapshotStore(tx),
       calendar: { getNextTradingDay, isTradingDay },
     });
-  }, { timeout: 30000 }); // 30s timeout for large rebuilds
+  }, { timeout: 120000 }); // 120s timeout for large rebuilds (80+ instruments)
 }

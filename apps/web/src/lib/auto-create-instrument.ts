@@ -51,11 +51,14 @@ interface PrismaInstrument {
  *
  * If the instrument already exists, returns it immediately.
  * If not, tries FMP search to get name/exchange/type, creates the instrument,
- * and triggers a Tiingo backfill (fire-and-forget).
+ * and triggers a Tiingo backfill (fire-and-forget unless skipBackfill is set).
+ *
+ * @param skipBackfill - If true, don't trigger backfill (caller will handle it).
+ *   Useful when creating many instruments at once to avoid SQLite write contention.
  *
  * Returns the Prisma instrument row.
  */
-export async function findOrCreateInstrument(symbol: string): Promise<PrismaInstrument> {
+export async function findOrCreateInstrument(symbol: string, skipBackfill = false): Promise<PrismaInstrument> {
   const upper = symbol.toUpperCase().trim();
 
   // Check if instrument already exists
@@ -73,7 +76,7 @@ export async function findOrCreateInstrument(symbol: string): Promise<PrismaInst
 
   try {
     const service = getMarketDataService();
-    const results = await service.search(upper);
+    const results = await service.searchSymbols(upper);
     if (results.length > 0) {
       const match = results.find(
         (r) => r.symbol.toUpperCase() === upper,
@@ -109,10 +112,12 @@ export async function findOrCreateInstrument(symbol: string): Promise<PrismaInst
     },
   });
 
-  // Trigger backfill fire-and-forget
-  triggerBackfill(instrument).catch((err: unknown) => {
-    console.error(`Backfill failed for ${upper}:`, err);
-  });
+  // Trigger backfill fire-and-forget (unless caller opts out)
+  if (!skipBackfill) {
+    triggerBackfill(instrument).catch((err: unknown) => {
+      console.error(`Backfill failed for ${upper}:`, err);
+    });
+  }
 
   return instrument;
 }
@@ -121,7 +126,7 @@ export async function findOrCreateInstrument(symbol: string): Promise<PrismaInst
  * Fetch ~2 years of daily price bars from Tiingo and bulk-insert into PriceBar table.
  * Updates firstBarDate on the instrument after successful backfill.
  */
-async function triggerBackfill(prismaInst: PrismaInstrument): Promise<void> {
+export async function triggerBackfill(prismaInst: PrismaInstrument): Promise<void> {
   const service = getMarketDataService();
 
   const domainInstrument: Instrument = {
