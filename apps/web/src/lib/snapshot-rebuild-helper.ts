@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { PrismaPriceLookup } from '@/lib/prisma-price-lookup';
+import { BatchPriceLookup } from '@/lib/batch-price-lookup';
 import { PrismaSnapshotStore } from '@/lib/prisma-snapshot-store';
 import { rebuildSnapshotsFrom } from '@stalker/analytics';
 import { getNextTradingDay, isTradingDay } from '@stalker/market-data';
@@ -64,6 +64,7 @@ function toDateStr(d: Date): string {
  */
 export async function triggerSnapshotRebuild(affectedDate: Date): Promise<void> {
   const affectedDateStr = toDateStr(affectedDate);
+  const startTime = Date.now();
 
   await prisma.$transaction(async (tx) => {
     const [prismaInstruments, prismaTransactions] = await Promise.all([
@@ -81,13 +82,20 @@ export async function triggerSnapshotRebuild(affectedDate: Date): Promise<void> 
     const instruments = prismaInstruments.map(toSharedInstrument);
     const transactions = prismaTransactions.map(toSharedTransaction);
 
+    // Pre-load all price bars into memory for batch lookup (AD-S14-3)
+    const instrumentIds = instruments.map((i) => i.id);
+    const priceLookup = await BatchPriceLookup.preload(tx, instrumentIds);
+
     await rebuildSnapshotsFrom({
       affectedDate: affectedDateStr,
       transactions,
       instruments,
-      priceLookup: new PrismaPriceLookup(tx),
+      priceLookup,
       snapshotStore: new PrismaSnapshotStore(tx),
       calendar: { getNextTradingDay, isTradingDay },
     });
-  }, { timeout: 600000 }); // 10 minute timeout for large portfolios (80+ instruments)
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[snapshot-rebuild] Completed in ${elapsed}ms for ${instruments.length} instruments`);
+  }, { timeout: 60000 }); // 60s timeout (reduced from 600s after batch price optimization — actual: ~4s for 83 instruments)
 }

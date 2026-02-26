@@ -7,6 +7,7 @@ import type { Transaction as AnalyticsTransaction } from '@stalker/shared';
 import { validateTransactionSet } from '@stalker/analytics';
 import { triggerSnapshotRebuild } from '@/lib/snapshot-rebuild-helper';
 import { findOrCreateInstrument } from '@/lib/auto-create-instrument';
+import Decimal from 'decimal.js';
 
 function prismaToAnalyticsTransaction(
   tx: { id: string; instrumentId: string; type: string; quantity: { toString(): string }; price: { toString(): string }; fees: { toString(): string }; tradeAt: Date; notes: string | null; createdAt: Date; updatedAt: Date },
@@ -119,7 +120,17 @@ export async function POST(request: NextRequest): Promise<Response> {
       });
     }
 
-    // Insert transaction
+    // Check for potential duplicate before inserting
+    const tradeAtDate = new Date(tradeAt);
+    const potentialDuplicate = existingTxs.some((ex) => {
+      if (ex.type !== type) return false;
+      if (ex.tradeAt.getTime() !== tradeAtDate.getTime()) return false;
+      const exQty = new Decimal(ex.quantity.toString());
+      const exPrice = new Decimal(ex.price.toString());
+      return exQty.eq(new Decimal(quantity)) && exPrice.eq(new Decimal(price));
+    });
+
+    // Insert transaction (don't block on duplicate — just warn)
     const created = await prisma.transaction.create({
       data: {
         id: newTxId,
@@ -128,15 +139,18 @@ export async function POST(request: NextRequest): Promise<Response> {
         quantity,
         price,
         fees,
-        tradeAt: new Date(tradeAt),
+        tradeAt: tradeAtDate,
         notes: notes ?? null,
       },
     });
 
     // Rebuild snapshots from the new transaction's trade date forward
-    await triggerSnapshotRebuild(new Date(tradeAt));
+    await triggerSnapshotRebuild(tradeAtDate);
 
-    return Response.json(serializeTransaction(created), { status: 201 });
+    return Response.json({
+      ...serializeTransaction(created),
+      potentialDuplicate,
+    }, { status: 201 });
   } catch (err: unknown) {
     console.error('POST /api/transactions error:', err);
     return apiError(500, 'INTERNAL_ERROR', 'Failed to create transaction');

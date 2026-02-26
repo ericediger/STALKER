@@ -69,7 +69,7 @@ export async function findOrCreateInstrument(symbol: string, skipBackfill = fals
     return existing;
   }
 
-  // Try FMP search to get metadata
+  // Try FMP search to get metadata, with Tiingo fallback
   let name = upper;
   let exchange = 'NYSE';
   let type = 'STOCK';
@@ -85,6 +85,40 @@ export async function findOrCreateInstrument(symbol: string, skipBackfill = fals
         name = match.name || upper;
         exchange = mapExchange(match.exchange);
         type = mapType(match.type);
+      }
+    }
+
+    // If FMP didn't resolve a name, try Tiingo metadata as fallback
+    if (name === upper) {
+      try {
+        const tiingoSymbol = buildTiingoSymbol(upper).toLowerCase();
+        const tiingoKey = process.env.TIINGO_API_KEY;
+        if (tiingoKey) {
+          const res = await fetch(
+            `https://api.tiingo.com/tiingo/daily/${tiingoSymbol}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Token ${tiingoKey}`,
+              },
+              signal: AbortSignal.timeout(10000),
+            },
+          );
+          if (res.ok) {
+            const meta = await res.json() as { name?: string; exchangeCode?: string };
+            if (meta.name) {
+              name = meta.name;
+            }
+            if (meta.exchangeCode) {
+              const mappedExch = mapExchange(meta.exchangeCode);
+              if (mappedExch !== 'NYSE' || exchange === 'NYSE') {
+                exchange = mappedExch;
+              }
+            }
+          }
+        }
+      } catch {
+        // Tiingo fallback failed — use defaults
       }
     }
   } catch {

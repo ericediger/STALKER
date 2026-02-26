@@ -24,6 +24,7 @@ export interface BulkImportError {
 
 export interface BulkImportResult {
   inserted: number;
+  skipped: number;
   errors: BulkImportError[];
   earliestDate: string | null;
 }

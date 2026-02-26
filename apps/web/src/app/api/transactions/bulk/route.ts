@@ -7,6 +7,7 @@ import type { Transaction as AnalyticsTransaction } from '@stalker/shared';
 import { validateTransactionSet } from '@stalker/analytics';
 import { triggerSnapshotRebuild } from '@/lib/snapshot-rebuild-helper';
 import { findOrCreateInstrument, triggerBackfill } from '@/lib/auto-create-instrument';
+import Decimal from 'decimal.js';
 
 /* -------------------------------------------------------------------------- */
 /*  Request validation schema                                                  */
@@ -115,8 +116,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       });
     }
 
-    // --- Step 3: Sell validation per instrument ---
-    // Group by instrumentId
+    // --- Step 2.5: Dedup — skip rows that match existing transactions exactly ---
     const instrumentIds = [...new Set(prospectiveTransactions.map((t) => t.instrumentId))];
 
     // Fetch all existing transactions for affected instruments
@@ -125,8 +125,52 @@ export async function POST(request: NextRequest): Promise<Response> {
       orderBy: { tradeAt: 'asc' },
     });
 
-    // Run sell validation per instrument (existing + new, sorted by tradeAt)
-    for (const instrumentId of instrumentIds) {
+    // Build a lookup for dedup: key = instrumentId, value = list of existing txs
+    const existingByInstrument = new Map<string, typeof existingTxs>();
+    for (const tx of existingTxs) {
+      const list = existingByInstrument.get(tx.instrumentId);
+      if (list) {
+        list.push(tx);
+      } else {
+        existingByInstrument.set(tx.instrumentId, [tx]);
+      }
+    }
+
+    // Partition into new vs skipped
+    const skippedRows: Array<{ rowIndex: number; symbol: string }> = [];
+    const deduped = prospectiveTransactions.filter((candidate) => {
+      const existing = existingByInstrument.get(candidate.instrumentId) ?? [];
+      const isDuplicate = existing.some((ex) => {
+        if (ex.type !== candidate.type) return false;
+        if (ex.tradeAt.getTime() !== candidate.tradeAt.getTime()) return false;
+        const exQty = new Decimal(ex.quantity.toString());
+        const exPrice = new Decimal(ex.price.toString());
+        const candQty = new Decimal(candidate.quantity);
+        const candPrice = new Decimal(candidate.price);
+        return exQty.eq(candQty) && exPrice.eq(candPrice);
+      });
+      if (isDuplicate) {
+        skippedRows.push({ rowIndex: candidate.rowIndex, symbol: candidate.symbol });
+      }
+      return !isDuplicate;
+    });
+
+    // If everything was a duplicate, return early
+    if (deduped.length === 0) {
+      return Response.json({
+        inserted: 0,
+        skipped: skippedRows.length,
+        errors: [],
+        earliestDate: null,
+        autoCreatedInstruments: autoCreated,
+      });
+    }
+
+    // --- Step 3: Sell validation per instrument ---
+
+    // Run sell validation per instrument (existing + deduped new, sorted by tradeAt)
+    const dedupedInstrumentIds = [...new Set(deduped.map((t) => t.instrumentId))];
+    for (const instrumentId of dedupedInstrumentIds) {
       const existingForInstrument = existingTxs
         .filter((tx) => tx.instrumentId === instrumentId)
         .map((tx): AnalyticsTransaction => ({
@@ -142,7 +186,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           updatedAt: tx.updatedAt,
         }));
 
-      const newForInstrument = prospectiveTransactions
+      const newForInstrument = deduped
         .filter((t) => t.instrumentId === instrumentId)
         .map((t): AnalyticsTransaction => ({
           id: t.id,
@@ -163,7 +207,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       const validation = validateTransactionSet(allTxs);
       if (!validation.valid) {
         // Find which row caused the issue
-        const offendingNew = prospectiveTransactions.find(
+        const offendingNew = deduped.find(
           (t) => t.id === validation.offendingTransaction.id,
         );
         const symbol = offendingNew?.symbol
@@ -172,6 +216,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         return Response.json({
           inserted: 0,
+          skipped: skippedRows.length,
           errors: [{
             lineNumber: offendingNew ? offendingNew.rowIndex + 1 : 0,
             symbol,
@@ -184,11 +229,16 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     // --- Step 4: Dry run check ---
     if (dryRun) {
-      return Response.json({ inserted: 0, errors: [], earliestDate: null });
+      return Response.json({
+        inserted: 0,
+        skipped: skippedRows.length,
+        errors: [],
+        earliestDate: null,
+      });
     }
 
-    // --- Step 5: Insert all rows in a single Prisma transaction ---
-    const txData = prospectiveTransactions.map((t) => ({
+    // --- Step 5: Insert deduped rows in a single Prisma transaction ---
+    const txData = deduped.map((t) => ({
       id: t.id,
       instrumentId: t.instrumentId,
       type: t.type,
@@ -208,9 +258,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     // --- Step 6: Trigger snapshot rebuild from earliest tradeAt (fire-and-forget) ---
     // For bulk imports with many instruments, the rebuild can take minutes.
     // We don't block the response — the dashboard will trigger a rebuild if needed.
-    const earliestTradeAt = prospectiveTransactions.reduce(
+    const earliestTradeAt = deduped.reduce(
       (earliest, t) => (t.tradeAt < earliest ? t.tradeAt : earliest),
-      prospectiveTransactions[0]!.tradeAt,
+      deduped[0]!.tradeAt,
     );
 
     triggerSnapshotRebuild(earliestTradeAt).catch((err: unknown) => {
@@ -231,7 +281,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     return Response.json({
-      inserted: rows.length,
+      inserted: deduped.length,
+      skipped: skippedRows.length,
       errors: [],
       earliestDate: earliestTradeAt.toISOString(),
       autoCreatedInstruments: autoCreated,

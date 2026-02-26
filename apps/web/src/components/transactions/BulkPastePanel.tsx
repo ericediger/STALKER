@@ -71,14 +71,20 @@ export function BulkPastePanel({ onImportSuccess }: BulkPastePanelProps) {
 
     const result = await submit(apiRows);
 
-    if (result && result.inserted > 0) {
+    if (result && (result.inserted > 0 || result.skipped > 0)) {
       const autoCreated = (result as { autoCreatedInstruments?: string[] }).autoCreatedInstruments ?? [];
       const autoMsg = autoCreated.length > 0
         ? ` Auto-added: ${autoCreated.join(", ")}.`
         : "";
+      const skipMsg = result.skipped > 0
+        ? ` Skipped ${result.skipped} duplicate${result.skipped > 1 ? "s" : ""}.`
+        : "";
+      const insertMsg = result.inserted > 0
+        ? `Imported ${result.inserted} transaction${result.inserted > 1 ? "s" : ""}.`
+        : "No new transactions to import.";
       toast({
-        message: `Imported ${result.inserted} transaction${result.inserted > 1 ? "s" : ""}.${autoMsg} Backfilling price history...`,
-        variant: "success",
+        message: `${insertMsg}${skipMsg}${autoMsg}${result.inserted > 0 ? " Backfilling price history..." : ""}`,
+        variant: result.inserted > 0 ? "success" : "info",
       });
       // Reset state
       setRawText("");
