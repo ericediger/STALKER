@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Instrument, Quote } from '@stalker/shared';
 import { Decimal } from '@stalker/shared';
+import type { PollResult } from '@stalker/market-data';
 import { Poller } from '../src/poller.js';
 import type { MarketDataServiceLike, InstrumentFetcher } from '../src/poller.js';
 
@@ -323,5 +324,86 @@ describe('Poller', () => {
     poller.stop();
     await vi.advanceTimersByTimeAsync(0);
     await pollerPromise;
+  });
+
+  describe('batch polling (pollAllQuotes)', () => {
+    let batchService: MarketDataServiceLike;
+    let mockPollAllQuotes: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      mockPollAllQuotes = vi.fn().mockResolvedValue({
+        updated: 3,
+        failed: 0,
+        skipped: 0,
+        source: 'tiingo-batch',
+      } satisfies PollResult);
+
+      batchService = {
+        getQuote: vi.fn().mockResolvedValue(null),
+        pollAllQuotes: mockPollAllQuotes,
+      };
+    });
+
+    it('should use pollAllQuotes when available instead of per-instrument getQuote', async () => {
+      mockIsMarketOpen.mockReturnValue(true);
+
+      const poller = new Poller({
+        fetchInstruments,
+        marketDataService: batchService,
+        pollIntervalMs: 5000,
+        postCloseDelayMs: 1000,
+      });
+
+      const pollerPromise = poller.start();
+      await vi.advanceTimersByTimeAsync(0);
+
+      // pollAllQuotes should have been called with the open instruments
+      expect(mockPollAllQuotes).toHaveBeenCalledTimes(1);
+      expect(mockPollAllQuotes).toHaveBeenCalledWith(instruments);
+
+      // Per-instrument getQuote should NOT have been called
+      expect(batchService.getQuote).not.toHaveBeenCalled();
+
+      poller.stop();
+      await vi.advanceTimersByTimeAsync(0);
+      await pollerPromise;
+    });
+
+    it('should fall back to per-instrument polling if pollAllQuotes throws', async () => {
+      mockIsMarketOpen.mockReturnValue(true);
+
+      mockPollAllQuotes.mockRejectedValue(new Error('Batch failed'));
+      vi.mocked(batchService.getQuote).mockImplementation((inst: Instrument) =>
+        Promise.resolve(createMockQuote(inst.symbol)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      const poller = new Poller({
+        fetchInstruments,
+        marketDataService: batchService,
+        pollIntervalMs: 5000,
+        postCloseDelayMs: 1000,
+      });
+
+      const pollerPromise = poller.start();
+      await vi.advanceTimersByTimeAsync(0);
+
+      // pollAllQuotes was attempted
+      expect(mockPollAllQuotes).toHaveBeenCalledTimes(1);
+
+      // Fell back to per-instrument polling
+      expect(batchService.getQuote).toHaveBeenCalledTimes(3);
+
+      // Error was logged
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Batch poll failed'),
+      );
+
+      poller.stop();
+      await vi.advanceTimersByTimeAsync(0);
+      await pollerPromise;
+      consoleSpy.mockRestore();
+    });
   });
 });

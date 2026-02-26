@@ -1,4 +1,5 @@
 import type { Instrument, Quote } from '@stalker/shared';
+import type { PollResult } from '@stalker/market-data';
 import { isMarketOpen } from '@stalker/market-data';
 
 /**
@@ -8,6 +9,7 @@ import { isMarketOpen } from '@stalker/market-data';
  */
 export interface MarketDataServiceLike {
   getQuote(instrument: Instrument): Promise<Quote | null>;
+  pollAllQuotes?(instruments: Instrument[]): Promise<PollResult>;
 }
 
 /**
@@ -159,9 +161,29 @@ export class Poller {
 
   /**
    * Poll all given instruments for quotes.
+   * Uses batch polling (pollAllQuotes) when available, falling back to per-instrument polling.
    */
   private async pollInstruments(instruments: Instrument[]): Promise<PollCycleResult> {
     const startTime = Date.now();
+
+    // Prefer batch polling if the service supports it
+    if (typeof this.marketDataService.pollAllQuotes === 'function') {
+      try {
+        const result = await this.marketDataService.pollAllQuotes(instruments);
+        return {
+          polled: instruments.length,
+          succeeded: result.updated,
+          failed: result.failed,
+          durationMs: Date.now() - startTime,
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[scheduler] Batch poll failed, falling back to per-instrument: ${errorMessage}`);
+        // Fall through to per-instrument polling
+      }
+    }
+
+    // Fallback: per-instrument polling
     let succeeded = 0;
     let failed = 0;
 

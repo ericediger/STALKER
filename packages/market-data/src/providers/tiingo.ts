@@ -66,6 +66,52 @@ export class TiingoProvider implements MarketDataProvider {
     return [];
   }
 
+  /**
+   * Fetch quotes for multiple symbols in a single batch IEX request.
+   * Tiingo IEX supports comma-separated tickers in one call.
+   * Chunks into groups of 50 to avoid URL length limits.
+   * Returns quotes only for symbols that Tiingo recognized — missing symbols are silently omitted.
+   */
+  async getBatchQuotes(symbols: string[]): Promise<Quote[]> {
+    if (symbols.length === 0) return [];
+
+    const token = getApiKey();
+    const CHUNK_SIZE = 50;
+    const allQuotes: Quote[] = [];
+
+    for (let i = 0; i < symbols.length; i += CHUNK_SIZE) {
+      const chunk = symbols.slice(i, i + CHUNK_SIZE);
+      const tickers = chunk.map((s) => encodeURIComponent(s)).join(',');
+      const url = `${TIINGO_BASE_URL}/iex/?tickers=${tickers}&token=${token}`;
+
+      let data: unknown;
+      try {
+        data = await this.fetchJson(url);
+      } catch {
+        // If entire batch fails, continue to next chunk (or return what we have)
+        continue;
+      }
+
+      if (!Array.isArray(data)) continue;
+
+      for (const raw of data as TiingoIexQuoteItem[]) {
+        const price = raw.tngoLast ?? raw.last;
+        if (price === undefined || price === null) continue;
+        if (!raw.ticker) continue;
+
+        const asOfStr = raw.lastSaleTimestamp ?? raw.timestamp;
+        allQuotes.push({
+          symbol: raw.ticker,
+          price: toDecimal(String(price)),
+          asOf: asOfStr ? new Date(asOfStr) : new Date(),
+          provider: this.name,
+        });
+      }
+    }
+
+    return allQuotes;
+  }
+
   async getQuote(symbol: string): Promise<Quote> {
     const token = getApiKey();
     const url = `${TIINGO_BASE_URL}/iex/${encodeURIComponent(symbol)}?token=${token}`;

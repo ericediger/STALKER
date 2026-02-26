@@ -76,27 +76,28 @@ async function main(): Promise<void> {
   const fetchInstruments = createInstrumentFetcher(prisma);
   const instruments = await fetchInstruments();
 
+  // With Tiingo batch polling, budget calculation uses Tiingo limits:
+  // Each poll cycle = 1 Tiingo batch call (not N individual calls).
+  // FMP is only used as single-symbol fallback for Tiingo misses.
   const budgetResult = checkBudget(
-    instruments.length,
+    1, // Batch polling: 1 API call per cycle regardless of instrument count
     config.pollIntervalSeconds,
     {
-      requestsPerMinute: config.fmpRpm,
-      requestsPerDay: config.fmpRpd,
+      requestsPerMinute: 10,
+      requestsPerHour: config.tiingoRph,
+      requestsPerDay: config.tiingoRpd,
       supportsIntraday: false,
       quoteDelayMinutes: 15,
     },
   );
 
+  console.log(`[scheduler] ${instruments.length} instruments tracked`);
   console.log(`[scheduler] ${budgetResult.message}`);
+  console.log(`[scheduler] Quote provider chain: Tiingo IEX (batch) → FMP (single) → AV (single)`);
 
-  // Adjust interval if over budget
-  let effectivePollIntervalSeconds = config.pollIntervalSeconds;
-  if (!budgetResult.ok && budgetResult.safeInterval !== undefined) {
-    effectivePollIntervalSeconds = budgetResult.safeInterval;
-    console.warn(
-      `[scheduler] Using extended interval: ${effectivePollIntervalSeconds}s instead of ${config.pollIntervalSeconds}s`,
-    );
-  }
+  // With batch polling, budget should always be OK.
+  // Keep the configured interval (no auto-adjustment needed).
+  const effectivePollIntervalSeconds = config.pollIntervalSeconds;
 
   // 5. Create and start poller
   const poller = new Poller({

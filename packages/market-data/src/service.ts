@@ -17,13 +17,25 @@ import {
 } from './cache.js';
 import type { PrismaClientForCache, LatestQuoteRecord } from './cache.js';
 import { toDecimal } from '@stalker/shared';
+import type { TiingoProvider } from './providers/tiingo.js';
+
+export interface PollResult {
+  /** Number of instruments with successfully updated quotes */
+  updated: number;
+  /** Number of instruments where all providers failed */
+  failed: number;
+  /** Number of instruments skipped (e.g., rate limited) */
+  skipped: number;
+  /** Primary source for this poll cycle */
+  source: string;
+}
 
 export interface MarketDataServiceConfig {
   /** Primary quote + search provider (typically FMP) */
   primaryProvider: MarketDataProvider;
   /** Secondary/backup quote + search provider (typically Alpha Vantage) */
   secondaryProvider: MarketDataProvider;
-  /** History provider (Tiingo — sole provider, no fallback) */
+  /** History provider (Tiingo — sole provider, no fallback). Must support getBatchQuotes if used for batch polling. */
   historyProvider: MarketDataProvider;
   /** Prisma client for LatestQuote cache operations (optional -- if not provided, caching is disabled) */
   prisma?: PrismaClientForCache;
@@ -158,6 +170,78 @@ export class MarketDataService {
     }
 
     return [];
+  }
+
+  /**
+   * Poll all instruments for quotes using Tiingo IEX batch as primary source.
+   * Provider chain: Tiingo batch → FMP single → AV single → skip.
+   * One Tiingo batch call covers all instruments. Fallback is per-instrument for gaps.
+   */
+  async pollAllQuotes(instruments: Instrument[]): Promise<PollResult> {
+    if (instruments.length === 0) {
+      return { updated: 0, failed: 0, skipped: 0, source: 'none' };
+    }
+
+    const result: PollResult = { updated: 0, failed: 0, skipped: 0, source: 'tiingo-batch' };
+
+    // Build a map of tiingo symbol → instrument for reverse lookup
+    const tiingoSymbolToInstrument = new Map<string, Instrument>();
+    const tiingoSymbols: string[] = [];
+
+    for (const inst of instruments) {
+      const sym = getProviderSymbol(inst, 'tiingo');
+      tiingoSymbols.push(sym);
+      tiingoSymbolToInstrument.set(sym.toUpperCase(), inst);
+    }
+
+    // Step 1: Try Tiingo IEX batch
+    const coveredInstrumentIds = new Set<string>();
+    const historyProvider = this.history.provider as TiingoProvider;
+
+    if (typeof historyProvider.getBatchQuotes === 'function' && this.history.limiter.canCall()) {
+      try {
+        this.history.limiter.recordCall();
+        const batchQuotes = await historyProvider.getBatchQuotes(tiingoSymbols);
+
+        for (const quote of batchQuotes) {
+          const inst = tiingoSymbolToInstrument.get(quote.symbol.toUpperCase());
+          if (!inst) continue;
+
+          await this.cacheQuote(inst.id, quote);
+          coveredInstrumentIds.add(inst.id);
+          result.updated++;
+        }
+      } catch {
+        // Tiingo batch failed entirely — will fall through to per-instrument fallback
+      }
+    }
+
+    // Step 2: For any instruments Tiingo missed, try FMP single-symbol then AV
+    const uncoveredInstruments = instruments.filter((inst) => !coveredInstrumentIds.has(inst.id));
+
+    for (const inst of uncoveredInstruments) {
+      // Try primary (FMP)
+      const primaryQuote = await this.tryGetQuote(this.primary, inst);
+      if (primaryQuote) {
+        await this.cacheQuote(inst.id, primaryQuote);
+        coveredInstrumentIds.add(inst.id);
+        result.updated++;
+        continue;
+      }
+
+      // Try secondary (AV)
+      const secondaryQuote = await this.tryGetQuote(this.secondary, inst);
+      if (secondaryQuote) {
+        await this.cacheQuote(inst.id, secondaryQuote);
+        coveredInstrumentIds.add(inst.id);
+        result.updated++;
+        continue;
+      }
+
+      result.failed++;
+    }
+
+    return result;
   }
 
   // --- Private helpers ---

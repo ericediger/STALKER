@@ -8,14 +8,21 @@ export interface StaleInstrument {
   minutesStale: number;
 }
 
+export interface ProviderBudget {
+  provider: string;
+  usedToday: number;
+  dailyLimit: number;
+  usedThisHour?: number;
+  hourlyLimit?: number;
+}
+
 export interface MarketStatus {
   instrumentCount: number;
   pollingInterval: number;
   pollingActive: boolean;
   budget: {
-    provider: string;
-    usedToday: number;
-    dailyLimit: number;
+    primary: ProviderBudget;
+    secondary: ProviderBudget;
   };
   freshness: {
     allFreshWithinMinutes: number | null;

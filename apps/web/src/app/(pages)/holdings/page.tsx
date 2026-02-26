@@ -100,7 +100,7 @@ export default function HoldingsPage() {
           + Add Instrument
         </Button>
       </div>
-      <StalenessBanner staleInstruments={staleInstruments} />
+      <StalenessBanner staleInstruments={staleInstruments} totalInstruments={marketStatus?.instrumentCount ?? displayHoldings.length} />
       <div className="bg-bg-secondary rounded-lg border border-border-primary">
         <HoldingsTable
           holdings={sortedHoldings}

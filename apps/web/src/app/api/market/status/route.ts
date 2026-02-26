@@ -55,14 +55,27 @@ export async function GET(): Promise<Response> {
       }
     }
 
+    const fmpDailyLimit = parseInt(process.env['FMP_RPD'] ?? '250', 10);
+    const tiingoHourlyLimit = parseInt(process.env['TIINGO_RPH'] ?? '50', 10);
+    const tiingoDailyLimit = parseInt(process.env['TIINGO_RPD'] ?? '1000', 10);
+
     return Response.json({
       instrumentCount,
       pollingInterval: 1800,
       pollingActive,
       budget: {
-        provider: 'fmp',
-        usedToday: 0,
-        dailyLimit: 250,
+        primary: {
+          provider: 'tiingo',
+          usedThisHour: 0,
+          hourlyLimit: tiingoHourlyLimit,
+          usedToday: 0,
+          dailyLimit: tiingoDailyLimit,
+        },
+        secondary: {
+          provider: 'fmp',
+          usedToday: 0,
+          dailyLimit: fmpDailyLimit,
+        },
       },
       freshness: {
         allFreshWithinMinutes,

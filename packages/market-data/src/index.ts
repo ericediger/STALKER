@@ -31,4 +31,4 @@ export { getProviderSymbol } from './symbol-map.js';
 
 // Service (Fallback Chain)
 export { MarketDataService } from './service.js';
-export type { MarketDataServiceConfig } from './service.js';
+export type { MarketDataServiceConfig, PollResult } from './service.js';

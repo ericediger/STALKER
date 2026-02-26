@@ -43,7 +43,11 @@ export function DataHealthFooter() {
             <span>Polling {formatPollingInterval(data.pollingInterval)}</span>
             <span className="select-none">&middot;</span>
             <span>
-              {data.budget.usedToday} / {data.budget.dailyLimit} calls
+              Tiingo: {data.budget.primary.usedThisHour ?? 0}/{data.budget.primary.hourlyLimit ?? 50}/hr
+            </span>
+            <span className="select-none">&middot;</span>
+            <span>
+              FMP: {data.budget.secondary.usedToday}/{data.budget.secondary.dailyLimit}/day
             </span>
             <span className="select-none">&middot;</span>
             {(() => {

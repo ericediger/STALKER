@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { DashboardEmpty } from "@/components/empty-states/DashboardEmpty";
 import { HeroMetric } from "@/components/dashboard/HeroMetric";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
@@ -17,6 +18,8 @@ import { useInstruments } from "@/lib/hooks/useInstruments";
 import { DEFAULT_WINDOW, type WindowOption } from "@/lib/window-utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { Holding } from "@/lib/holdings-utils";
+
+const DASHBOARD_MAX_HOLDINGS = 20;
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -47,7 +50,7 @@ export default function DashboardPage() {
   // Build display holdings: use real holdings if available, otherwise
   // create zero-value entries from instruments so the user can see
   // which instruments are tracked even before adding transactions.
-  const displayHoldings: Holding[] =
+  const allHoldings: Holding[] =
     holdings && holdings.length > 0
       ? holdings
       : (instruments ?? []).map((inst) => ({
@@ -62,6 +65,14 @@ export default function DashboardPage() {
           unrealizedPnlPct: "0",
           allocation: "0",
         }));
+
+  // Dashboard shows top N holdings by allocation (already sorted by API)
+  const displayHoldings = useMemo(() =>
+    allHoldings.slice(0, DASHBOARD_MAX_HOLDINGS),
+    [allHoldings],
+  );
+  const totalHoldingsCount = allHoldings.length;
+  const showViewAllLink = totalHoldingsCount > DASHBOARD_MAX_HOLDINGS;
 
   return (
     <div className="space-y-6 py-4">
@@ -88,7 +99,18 @@ export default function DashboardPage() {
       {holdingsLoading || instrumentsLoading ? (
         <Skeleton height="200px" className="w-full rounded-lg" />
       ) : displayHoldings.length > 0 ? (
-        <HoldingsTable holdings={displayHoldings} compact onRowClick={handleRowClick} />
+        <div>
+          <HoldingsTable holdings={displayHoldings} compact onRowClick={handleRowClick} />
+          {showViewAllLink && (
+            <div className="text-center text-text-tertiary text-sm py-3 border-t border-border-primary">
+              Showing top {DASHBOARD_MAX_HOLDINGS} of {totalHoldingsCount} holdings{" "}
+              <span className="select-none">&middot;</span>{" "}
+              <Link href="/holdings" className="text-accent-primary hover:underline">
+                View all holdings &rarr;
+              </Link>
+            </div>
+          )}
+        </div>
       ) : null}
 
       <AddInstrumentModal
