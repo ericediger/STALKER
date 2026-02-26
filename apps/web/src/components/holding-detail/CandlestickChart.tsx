@@ -1,10 +1,21 @@
 "use client";
 
 import { useRef, useEffect, useState, useMemo } from "react";
-import { CandlestickSeries, type ISeriesApi, type SeriesType } from "lightweight-charts";
+import {
+  CandlestickSeries,
+  createSeriesMarkers,
+  type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesType,
+  type Time,
+} from "lightweight-charts";
 import { useChart } from "@/lib/hooks/useChart";
 import { useMarketHistory } from "@/lib/hooks/useMarketHistory";
 import { toCandlestickData } from "@/lib/chart-candlestick-utils";
+import {
+  transactionsToMarkers,
+  type TransactionForMarker,
+} from "@/lib/chart-marker-utils";
 import { PillToggle } from "@/components/ui/PillToggle";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -45,12 +56,14 @@ function getStartDate(range: ChartRange): string | undefined {
 
 interface CandlestickChartProps {
   symbol: string;
+  transactions?: TransactionForMarker[];
 }
 
-export function CandlestickChart({ symbol }: CandlestickChartProps) {
+export function CandlestickChart({ symbol, transactions }: CandlestickChartProps) {
   const [range, setRange] = useState<ChartRange>("3M");
   const containerRef = useRef<HTMLDivElement>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
 
   const startDate = useMemo(() => getStartDate(range), [range]);
   const { data: bars, isLoading } = useMarketHistory(symbol, startDate);
@@ -89,6 +102,24 @@ export function CandlestickChart({ symbol }: CandlestickChartProps) {
       chart.timeScale().fitContent();
     }
   }, [bars, chart]);
+
+  // Update transaction markers when transactions or series change
+  useEffect(() => {
+    if (!seriesRef.current) return;
+
+    // Clean up previous markers plugin
+    if (markersRef.current) {
+      markersRef.current.detach();
+      markersRef.current = null;
+    }
+
+    if (transactions && transactions.length > 0) {
+      const markers = transactionsToMarkers(transactions);
+      if (markers.length > 0) {
+        markersRef.current = createSeriesMarkers(seriesRef.current, markers);
+      }
+    }
+  }, [transactions, bars]);
 
   const hasData = bars.length > 0;
 

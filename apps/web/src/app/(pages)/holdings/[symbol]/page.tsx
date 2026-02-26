@@ -139,7 +139,7 @@ export default function HoldingDetailPage() {
       <PositionSummary detail={data} />
 
       {/* Price chart */}
-      <CandlestickChart symbol={data.symbol} />
+      <CandlestickChart symbol={data.symbol} transactions={data.transactions} />
 
       {/* FIFO Lots */}
       <LotsTable lots={data.lots} markPrice={hasPrice ? data.markPrice : null} />
