@@ -10,9 +10,7 @@ interface NavTab {
 }
 
 const tabs: NavTab[] = [
-  { label: "Dashboard", href: "/" },
-  { label: "Holdings", href: "/holdings" },
-  { label: "Transactions", href: "/transactions" },
+  { label: "Portfolio", href: "/" },
   { label: "Charts", href: "/charts" },
 ];
 

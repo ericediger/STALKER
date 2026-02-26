@@ -71,9 +71,9 @@ export default function HoldingDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
-          href="/holdings"
+          href="/"
           className="text-text-tertiary hover:text-text-primary transition-colors"
-          aria-label="Back to holdings"
+          aria-label="Back to portfolio"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -104,7 +104,7 @@ export default function HoldingDetailPage() {
       <PositionSummary detail={data} />
 
       {/* Price chart */}
-      <CandlestickChart symbol={data.symbol} />
+      <CandlestickChart symbol={data.symbol} transactions={data.transactions} />
 
       {/* FIFO Lots */}
       <LotsTable lots={data.lots} markPrice={hasPrice ? data.markPrice : null} />

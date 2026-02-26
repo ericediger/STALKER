@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CandlestickChart } from "@/components/holding-detail/CandlestickChart";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { TransactionForMarker } from "@/lib/chart-marker-utils";
 
 interface InstrumentOption {
   id: string;
@@ -10,11 +11,21 @@ interface InstrumentOption {
   name: string;
 }
 
+interface TransactionResponse {
+  id: string;
+  type: "BUY" | "SELL";
+  quantity: string;
+  price: string;
+  tradeAt: string;
+}
+
 export default function ChartsPage() {
   const [instruments, setInstruments] = useState<InstrumentOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSymbol, setSelectedSymbol] = useState<string>("");
+  const [transactions, setTransactions] = useState<TransactionForMarker[]>([]);
 
+  // Fetch instruments on mount
   useEffect(() => {
     fetch("/api/instruments")
       .then((res) => {
@@ -33,6 +44,49 @@ export default function ChartsPage() {
       .finally(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Find the instrument ID for the selected symbol
+  const selectedInstrumentId = useMemo(() => {
+    const inst = instruments.find((i) => i.symbol === selectedSymbol);
+    return inst?.id ?? null;
+  }, [instruments, selectedSymbol]);
+
+  // Fetch transactions for the selected instrument
+  useEffect(() => {
+    if (!selectedInstrumentId) {
+      setTransactions([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetch(`/api/transactions?instrumentId=${encodeURIComponent(selectedInstrumentId)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data: TransactionResponse[]) => {
+        if (!cancelled) {
+          setTransactions(
+            data.map((tx) => ({
+              type: tx.type,
+              quantity: tx.quantity,
+              price: tx.price,
+              tradeAt: tx.tradeAt,
+            })),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTransactions([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedInstrumentId]);
 
   if (isLoading) {
     return (
@@ -61,7 +115,10 @@ export default function ChartsPage() {
       </div>
 
       {selectedSymbol ? (
-        <CandlestickChart symbol={selectedSymbol} />
+        <CandlestickChart
+          symbol={selectedSymbol}
+          transactions={transactions}
+        />
       ) : (
         <div className="flex items-center justify-center bg-bg-secondary border border-border-primary rounded-lg h-[340px]">
           <p className="text-text-tertiary text-sm">
