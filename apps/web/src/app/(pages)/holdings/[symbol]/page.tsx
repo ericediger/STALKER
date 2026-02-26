@@ -12,7 +12,10 @@ import { HoldingTransactions } from "@/components/holding-detail/HoldingTransact
 import { UnpricedWarning } from "@/components/holding-detail/UnpricedWarning";
 import { TransactionFormModal } from "@/components/transactions/TransactionFormModal";
 import { DeleteConfirmation } from "@/components/transactions/DeleteConfirmation";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 
 export default function HoldingDetailPage() {
@@ -25,6 +28,9 @@ export default function HoldingDetailPage() {
 
   const [editTx, setEditTx] = useState<HoldingTransaction | null>(null);
   const [deleteTx, setDeleteTx] = useState<HoldingTransaction | null>(null);
+  const [showDeleteInstrument, setShowDeleteInstrument] = useState(false);
+  const [isDeletingInstrument, setIsDeletingInstrument] = useState(false);
+  const { toast } = useToast();
 
   const handleEditSuccess = useCallback(() => {
     refetch();
@@ -33,6 +39,28 @@ export default function HoldingDetailPage() {
   const handleDeleteSuccess = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleDeleteInstrument = useCallback(async () => {
+    if (!data) return;
+    setIsDeletingInstrument(true);
+    try {
+      const res = await fetch(`/api/instruments/${data.instrumentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { message?: string }).message ?? `HTTP ${res.status}`);
+      }
+      toast({ message: `${data.symbol} deleted.`, variant: "success" });
+      router.push("/");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to delete";
+      toast({ message, variant: "error" });
+    } finally {
+      setIsDeletingInstrument(false);
+      setShowDeleteInstrument(false);
+    }
+  }, [data, toast, router]);
 
   // Redirect to dashboard on 404
   useEffect(() => {
@@ -71,9 +99,9 @@ export default function HoldingDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
-          href="/holdings"
+          href="/"
           className="text-text-tertiary hover:text-text-primary transition-colors"
-          aria-label="Back to holdings"
+          aria-label="Back to portfolio"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -89,12 +117,19 @@ export default function HoldingDetailPage() {
             <path d="m15 18-6-6 6-6" />
           </svg>
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-heading text-text-primary">
             {data.symbol}
           </h1>
           <p className="text-sm text-text-secondary">{data.name}</p>
         </div>
+        <Button
+          variant="danger"
+          size="sm"
+          onClick={() => setShowDeleteInstrument(true)}
+        >
+          Delete
+        </Button>
       </div>
 
       {/* Unpriced warning */}
@@ -137,7 +172,7 @@ export default function HoldingDetailPage() {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Transaction Confirmation Modal */}
       <DeleteConfirmation
         open={!!deleteTx}
         onClose={() => setDeleteTx(null)}
@@ -154,6 +189,42 @@ export default function HoldingDetailPage() {
         }
         onSuccess={handleDeleteSuccess}
       />
+
+      {/* Delete Instrument Modal */}
+      <Modal
+        open={showDeleteInstrument}
+        onClose={() => setShowDeleteInstrument(false)}
+        title={`Delete ${data.symbol}?`}
+      >
+        <div className="space-y-4">
+          <p className="text-text-secondary text-sm">
+            This will permanently delete <strong className="text-text-primary">{data.name}</strong> and
+            all {data.transactions.length} transaction{data.transactions.length !== 1 ? "s" : ""} associated
+            with it. Portfolio snapshots will be rebuilt.
+          </p>
+          <p className="text-accent-negative text-sm font-medium">
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowDeleteInstrument(false)}
+              disabled={isDeletingInstrument}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteInstrument}
+              loading={isDeletingInstrument}
+            >
+              Delete Instrument
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

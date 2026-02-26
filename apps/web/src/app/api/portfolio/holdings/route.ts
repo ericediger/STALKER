@@ -39,6 +39,19 @@ export async function GET(): Promise<Response> {
       }
     }
 
+    // Derive first BUY date per instrument
+    const firstBuyRows = await prisma.transaction.groupBy({
+      by: ['instrumentId'],
+      where: { type: 'BUY' },
+      _min: { tradeAt: true },
+    });
+    const firstBuyByInstrumentId = new Map<string, Date>();
+    for (const row of firstBuyRows) {
+      if (row._min.tradeAt) {
+        firstBuyByInstrumentId.set(row.instrumentId, row._min.tradeAt);
+      }
+    }
+
     const totalValue = latest.totalValue;
     const holdings: Array<Record<string, unknown>> = [];
 
@@ -57,6 +70,8 @@ export async function GET(): Promise<Response> {
         ? '0'
         : div(currentValue, totalValue).times(100).toFixed(2);
 
+      const firstBuyDate = inst ? firstBuyByInstrumentId.get(inst.id) ?? null : null;
+
       holdings.push({
         symbol,
         name: inst?.name ?? symbol,
@@ -68,6 +83,7 @@ export async function GET(): Promise<Response> {
         unrealizedPnl: unrealizedPnl.toString(),
         unrealizedPnlPct,
         allocation,
+        firstBuyDate: firstBuyDate ? firstBuyDate.toISOString() : null,
       });
     }
 

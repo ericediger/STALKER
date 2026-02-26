@@ -198,6 +198,29 @@ export function formatDate(isoString: string): string {
 }
 
 /**
+ * Format an ISO date string as abbreviated month + 2-digit year.
+ *
+ * - `"2025-06-15T00:00:00Z"` -> `"Jun '25"`
+ * - `"2026-01-20T00:00:00Z"` -> `"Jan '26"`
+ * - Invalid -> em dash
+ */
+export function formatMonthYear(isoString: string): string {
+  if (!isoString || typeof isoString !== 'string') return EM_DASH;
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return EM_DASH;
+    const month = date.toLocaleDateString('en-US', {
+      month: 'short',
+      timeZone: 'UTC',
+    });
+    const year = date.getUTCFullYear().toString().slice(-2);
+    return `${month} '${year}`;
+  } catch {
+    return EM_DASH;
+  }
+}
+
+/**
  * Format an ISO date string as relative time from now.
  *
  * - Recent -> `"5 min ago"`, `"2 hr ago"`, `"3 days ago"`

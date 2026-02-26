@@ -50,6 +50,7 @@ export default function HoldingsPage() {
         unrealizedPnl: "0",
         unrealizedPnlPct: "0",
         allocation: "0",
+        firstBuyDate: null,
       }));
     }
     return [];

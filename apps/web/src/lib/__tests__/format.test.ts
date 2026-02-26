@@ -5,6 +5,7 @@ import {
   formatQuantity,
   formatCompact,
   formatDate,
+  formatMonthYear,
   formatRelativeTime,
 } from '../format';
 
@@ -186,6 +187,30 @@ describe('formatDate', () => {
 
   it('formats a date at year boundary', () => {
     expect(formatDate('2025-12-31T23:59:59Z')).toBe('Dec 31, 2025');
+  });
+});
+
+// ── formatMonthYear ────────────────────────────────────────────────
+
+describe('formatMonthYear', () => {
+  it('formats a mid-year date', () => {
+    expect(formatMonthYear('2025-06-15T00:00:00Z')).toBe("Jun '25");
+  });
+
+  it('formats a January date', () => {
+    expect(formatMonthYear('2026-01-20T00:00:00Z')).toBe("Jan '26");
+  });
+
+  it('formats a December date', () => {
+    expect(formatMonthYear('2024-12-31T23:59:59Z')).toBe("Dec '24");
+  });
+
+  it('returns em dash for empty string', () => {
+    expect(formatMonthYear('')).toBe('\u2014');
+  });
+
+  it('returns em dash for invalid date', () => {
+    expect(formatMonthYear('not-a-date')).toBe('\u2014');
   });
 });
 

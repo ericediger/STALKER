@@ -3,9 +3,11 @@ import Decimal from "decimal.js";
 export type SortColumn =
   | "symbol"
   | "name"
+  | "firstBuyDate"
   | "qty"
   | "price"
   | "value"
+  | "costBasis"
   | "unrealizedPnl"
   | "unrealizedPnlPct"
   | "allocation";
@@ -23,13 +25,14 @@ export interface Holding {
   unrealizedPnl: string;
   unrealizedPnlPct: string;
   allocation: string;
+  firstBuyDate: string | null;
 }
 
 const STRING_COLUMNS: ReadonlySet<SortColumn> = new Set(["symbol", "name"]);
 
 /**
  * Sort holdings by column. String columns sort alphabetically (case-insensitive).
- * Numeric columns sort by Decimal comparison.
+ * Date columns sort chronologically (nulls last). Numeric columns sort by Decimal comparison.
  */
 export function sortHoldings(
   holdings: Holding[],
@@ -38,8 +41,16 @@ export function sortHoldings(
 ): Holding[] {
   const sorted = [...holdings].sort((a, b) => {
     if (STRING_COLUMNS.has(column)) {
-      const aVal = a[column].toLowerCase();
-      const bVal = b[column].toLowerCase();
+      const aVal = (a[column] as string).toLowerCase();
+      const bVal = (b[column] as string).toLowerCase();
+      return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+    }
+    if (column === "firstBuyDate") {
+      const aVal = a.firstBuyDate;
+      const bVal = b.firstBuyDate;
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return 1;
+      if (bVal === null) return -1;
       return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
     }
     const aVal = new Decimal(a[column]);

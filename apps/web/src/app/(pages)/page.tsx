@@ -2,14 +2,14 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { DashboardEmpty } from "@/components/empty-states/DashboardEmpty";
 import { HeroMetric } from "@/components/dashboard/HeroMetric";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { PortfolioChart } from "@/components/dashboard/PortfolioChart";
 import { WindowSelector } from "@/components/dashboard/WindowSelector";
-import { HoldingsTable } from "@/components/holdings/HoldingsTable";
+import { PortfolioTable } from "@/components/dashboard/PortfolioTable";
 import { AddInstrumentModal } from "@/components/instruments/AddInstrumentModal";
+import { BulkPastePanel } from "@/components/transactions/BulkPastePanel";
 import { Button } from "@/components/ui/Button";
 import { usePortfolioSnapshot } from "@/lib/hooks/usePortfolioSnapshot";
 import { usePortfolioTimeseries } from "@/lib/hooks/usePortfolioTimeseries";
@@ -19,14 +19,12 @@ import { DEFAULT_WINDOW, type WindowOption } from "@/lib/window-utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { Holding } from "@/lib/holdings-utils";
 
-const DASHBOARD_MAX_HOLDINGS = 20;
-
-export default function DashboardPage() {
+export default function PortfolioPage() {
   const router = useRouter();
   const [selectedWindow, setSelectedWindow] = useState<WindowOption>(DEFAULT_WINDOW);
   const { data: snapshot, isLoading: snapshotLoading } = usePortfolioSnapshot(selectedWindow);
   const { data: timeseries, isLoading: timeseriesLoading } = usePortfolioTimeseries(selectedWindow);
-  const { data: holdings, isLoading: holdingsLoading } = useHoldings();
+  const { data: holdings, isLoading: holdingsLoading, refetch: refetchHoldings } = useHoldings();
   const { data: instruments, isLoading: instrumentsLoading } = useInstruments();
   const [showAddInstrument, setShowAddInstrument] = useState(false);
 
@@ -37,6 +35,14 @@ export default function DashboardPage() {
   const handleInstrumentAdded = useCallback(() => {
     window.location.reload();
   }, []);
+
+  const handleDeleteSuccess = useCallback(() => {
+    refetchHoldings();
+  }, [refetchHoldings]);
+
+  const handleBulkImportSuccess = useCallback(() => {
+    refetchHoldings();
+  }, [refetchHoldings]);
 
   // Show empty state only when no instruments exist at all
   const hasInstruments = instruments !== null && instruments.length > 0;
@@ -64,15 +70,8 @@ export default function DashboardPage() {
           unrealizedPnl: "0",
           unrealizedPnlPct: "0",
           allocation: "0",
+          firstBuyDate: null,
         }));
-
-  // Dashboard shows top N holdings by allocation (already sorted by API)
-  const displayHoldings = useMemo(() =>
-    allHoldings.slice(0, DASHBOARD_MAX_HOLDINGS),
-    [allHoldings],
-  );
-  const totalHoldingsCount = allHoldings.length;
-  const showViewAllLink = totalHoldingsCount > DASHBOARD_MAX_HOLDINGS;
 
   return (
     <div className="space-y-6 py-4">
@@ -98,20 +97,18 @@ export default function DashboardPage() {
 
       {holdingsLoading || instrumentsLoading ? (
         <Skeleton height="200px" className="w-full rounded-lg" />
-      ) : displayHoldings.length > 0 ? (
-        <div>
-          <HoldingsTable holdings={displayHoldings} compact onRowClick={handleRowClick} />
-          {showViewAllLink && (
-            <div className="text-center text-text-tertiary text-sm py-3 border-t border-border-primary">
-              Showing top {DASHBOARD_MAX_HOLDINGS} of {totalHoldingsCount} holdings{" "}
-              <span className="select-none">&middot;</span>{" "}
-              <Link href="/holdings" className="text-accent-primary hover:underline">
-                View all holdings &rarr;
-              </Link>
-            </div>
-          )}
-        </div>
+      ) : allHoldings.length > 0 ? (
+        <PortfolioTable
+          holdings={allHoldings}
+          onRowClick={handleRowClick}
+          onDeleteSuccess={handleDeleteSuccess}
+        />
       ) : null}
+
+      {/* Bulk Import — collapsible section below table */}
+      {hasInstruments && (
+        <BulkPastePanel onImportSuccess={handleBulkImportSuccess} />
+      )}
 
       <AddInstrumentModal
         open={showAddInstrument}

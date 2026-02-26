@@ -19,6 +19,7 @@ function makeHolding(overrides: Partial<Holding> = {}): Holding {
     unrealizedPnl: "300.00",
     unrealizedPnlPct: "25.00",
     allocation: "50.00",
+    firstBuyDate: "2025-06-15T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -69,6 +70,37 @@ describe("sortHoldings", () => {
     const original = [...holdings];
     sortHoldings(holdings, "value", "asc");
     expect(holdings).toEqual(original);
+  });
+
+  it("sorts by firstBuyDate ascending (nulls last)", () => {
+    const holdingsWithDates: Holding[] = [
+      makeHolding({ symbol: "C", firstBuyDate: "2025-09-01T00:00:00Z" }),
+      makeHolding({ symbol: "A", firstBuyDate: "2025-01-15T00:00:00Z" }),
+      makeHolding({ symbol: "D", firstBuyDate: null }),
+      makeHolding({ symbol: "B", firstBuyDate: "2025-06-15T00:00:00Z" }),
+    ];
+    const sorted = sortHoldings(holdingsWithDates, "firstBuyDate", "asc");
+    expect(sorted.map((h) => h.symbol)).toEqual(["A", "B", "C", "D"]);
+  });
+
+  it("sorts by firstBuyDate descending (nulls last in source, first after reverse)", () => {
+    const holdingsWithDates: Holding[] = [
+      makeHolding({ symbol: "A", firstBuyDate: "2025-01-15T00:00:00Z" }),
+      makeHolding({ symbol: "B", firstBuyDate: "2025-06-15T00:00:00Z" }),
+      makeHolding({ symbol: "C", firstBuyDate: null }),
+    ];
+    const sorted = sortHoldings(holdingsWithDates, "firstBuyDate", "desc");
+    expect(sorted.map((h) => h.symbol)).toEqual(["C", "B", "A"]);
+  });
+
+  it("sorts by costBasis descending", () => {
+    const holdingsWithCostBasis: Holding[] = [
+      makeHolding({ symbol: "A", costBasis: "1000" }),
+      makeHolding({ symbol: "B", costBasis: "5000" }),
+      makeHolding({ symbol: "C", costBasis: "2500" }),
+    ];
+    const sorted = sortHoldings(holdingsWithCostBasis, "costBasis", "desc");
+    expect(sorted.map((h) => h.symbol)).toEqual(["B", "C", "A"]);
   });
 });
 
