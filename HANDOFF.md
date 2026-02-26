@@ -1,13 +1,13 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-25 (Post-Session 14)
-**Last Session:** Session 14 — Data Integrity + Rebuild Performance + Name Resolution
+**Last Updated:** 2026-02-26 (Post-Session 15)
+**Last Session:** Session 15 — Quote Pipeline Unblock + Scale UX Fixes
 
 ---
 
 ## Current State
 
-Session 14 addressed three critical post-UAT issues: bulk import idempotency, snapshot rebuild performance, and instrument name resolution. All 78 unnamed instruments now have proper names. Bulk import is idempotent (re-import produces 0 new transactions). Snapshot rebuild dropped from minutes to ~4 seconds for 83 instruments.
+Session 15 resolved the critical quote starvation problem: with 83 instruments and FMP's 250 calls/day limit, only ~3 instruments could get live quotes per day. Now the scheduler uses Tiingo IEX batch as the primary quote source — one API call fetches all 83 instruments. Dashboard UX adapted for 83-instrument scale with top-20 truncation and adaptive staleness banners.
 
 ### What Exists
 
@@ -15,7 +15,7 @@ Session 14 addressed three critical post-UAT issues: bulk import idempotency, sn
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined
-- Vitest 3.2.4 — **602 tests** passing across **50 test files**
+- Vitest 3.2.4 — **631 tests** passing across **54 test files**
 - Next.js 15.5.12 App Router with all API routes + all UI pages (including advisor)
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
@@ -33,26 +33,29 @@ Session 14 addressed three critical post-UAT issues: bulk import idempotency, sn
   - buildPortfolioValueSeries, rebuildSnapshotsFrom, queryPortfolioWindow
 - `@stalker/market-data` — Complete:
   - MarketCalendar, 3 active providers (FMP, Tiingo, Alpha Vantage), rate limiter (per-min + per-hour + per-day), fallback chain, cache
+  - **Tiingo IEX batch quotes** (`getBatchQuotes()`) — fetches all instruments in one call
+  - **`pollAllQuotes()`** on MarketDataService — Tiingo batch → FMP single → AV single fallback chain
   - MarketDataService with singleton factory (`apps/web/src/lib/market-data-service.ts`)
   - Stooq deprecated (file kept for reference, not in active chain)
 - `@stalker/scheduler` — Complete:
-  - Config loader (with Tiingo env vars), budget check (auto-adjusts interval for large portfolios), poller, graceful shutdown
+  - Config loader (with Tiingo env vars), budget check, poller with **batch polling** via `pollAllQuotes()`, graceful shutdown
+  - Quote provider chain: Tiingo IEX (batch) → FMP (single) → AV (single)
+  - 30-minute poll interval (no longer auto-extended for large portfolios since batch = 1 call)
 
-**Session 14 Changes (NEW):**
-- **Bulk import dedup guard** — Exact match on `(instrumentId, type, quantity, price, tradeAt)` using `Decimal.eq()`. Skipped rows reported in response. UI shows "Imported N. Skipped M duplicates." toast.
-- **Single transaction dedup warning** — `POST /api/transactions` returns `potentialDuplicate: true` when match exists (still inserts, just warns).
-- **BatchPriceLookup** — Pre-loads all price bars into memory via single query. O(1) exact lookups, O(log n) carry-forward via binary search. Replaces per-query PriceLookup in snapshot rebuild.
-- **Snapshot rebuild: ~4 seconds** for 83 instruments × 40K bars (was minutes). Timeout reduced from 600s to 60s.
-- **Instrument name resolution** — `scripts/resolve-instrument-names.ts` resolved all 78 unnamed instruments (76 FMP, 2 Tiingo).
-- **Auto-create Tiingo fallback** — `findOrCreateInstrument()` tries Tiingo metadata when FMP search returns nothing.
-- **Benchmark script** — `scripts/benchmark-rebuild.ts` for measuring rebuild performance.
+**Session 15 Changes (NEW):**
+- **Tiingo IEX batch quotes** — `TiingoProvider.getBatchQuotes(symbols)` fetches all instruments via `GET /iex/?tickers=...`. Chunks into groups of 50. Handles partial results, empty responses, HTTP 200 text errors.
+- **`MarketDataService.pollAllQuotes()`** — Single entry point for polling all instruments. Tiingo batch primary, FMP/AV single-symbol fallback for gaps. Returns `PollResult` summary.
+- **Scheduler batch polling** — Poller prefers `pollAllQuotes()` over per-instrument `getQuote()`. Falls back gracefully if batch fails. Budget calculation uses 1 call/cycle (not N).
+- **Dashboard top-20 truncation** — Shows top 20 holdings by allocation with "Showing top 20 of N holdings · View all holdings →" link.
+- **Adaptive staleness banner** — 0%: hidden, 1–30%: amber standard, 31–79%: amber with counts, ≥80%: blue "Prices updating" informational style.
+- **Multi-provider market status** — `/api/market/status` returns Tiingo (hourly/daily) and FMP (daily) budget. DataHealthFooter shows both.
 
-**API Layer (Sessions 4–14):**
+**API Layer (Sessions 4–15):**
 - **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete, automatic Tiingo backfill on creation
 - **Transaction CRUD:** POST/GET/GET[id]/PUT/DELETE with sell validation via `validateTransactionSet()`
 - **Bulk transactions:** POST /api/transactions/bulk — dedup guard, auto-creates missing instruments, sequential backfills, fire-and-forget snapshot rebuild
 - **Portfolio endpoints:** snapshot (read-only), rebuild (explicit POST, 60s timeout), timeseries, holdings (allocation %), holdings/[symbol] (lot detail)
-- **Market endpoints:** quote (cached), history (price bars), search (live FMP), refresh (live multi-provider), status (health summary)
+- **Market endpoints:** quote (cached), history (price bars), search (live FMP), refresh (live multi-provider), status (multi-provider health summary)
 
 **Real Portfolio State:**
 - 83 instruments (all with proper names)
@@ -73,6 +76,7 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-1 through KL-6).
 - ~~KL-7~~ — RESOLVED: Snapshot rebuild now ~4s (was minutes). BatchPriceLookup optimization.
 - ~~KL-8~~ — RESOLVED: All instruments have proper names via resolution script + Tiingo fallback.
 - ~~KL-9~~ — RESOLVED: Bulk import dedup guard prevents duplicate transactions.
+- ~~KL-10~~ — RESOLVED: Quote starvation. Tiingo batch quotes fetch all 83 instruments in 1 API call.
 
 ---
 
@@ -80,14 +84,14 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-1 through KL-6).
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 602 |
-| Test files | 50 |
+| Test count (total) | 631 |
+| Test files | 54 |
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (all implemented) |
 | API endpoints | 22 (all implemented — no stubs remaining) |
 | UI components | 48 |
 | Data hooks | 12 |
-| Utility modules | 10 |
+| Utility modules | 11 |
 | UI pages | 6 of 6 (all data-wired including advisor) |
 | Prisma tables | 7 of 7 |
 | Market data providers | 3 active (FMP, Tiingo, AV) + 1 deprecated (Stooq) |
@@ -96,14 +100,14 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-1 through KL-6).
 
 ---
 
-## Architecture Decisions (Session 14)
+## Architecture Decisions (Session 15)
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| AD-S14-1 | Dedup by exact match on (instrumentId, type, quantity, price, tradeAt) | Conservative. Avoids false positives. Two trades at different prices on the same day are distinct. |
-| AD-S14-2 | Dedup uses Decimal.eq() for quantity/price | String comparison fails if Prisma returns "50.00" vs "50" for same value. |
-| AD-S14-3 | BatchPriceLookup: single query, in-memory Map, binary search carry-forward | O(1) per date lookup vs O(1) query per date. Memory: ~1MB for 40K bars. |
-| AD-S14-4 | Name resolution is manual script, not auto-startup | FMP calls expensive (250/day). One-time resolution, not repeated. |
+| AD-S15-1 | Tiingo IEX batch as primary quote source for scheduler | 1 API call = all instruments. Eliminates quote starvation. FMP reserved for search + single-symbol fallback. |
+| AD-S15-2 | Dashboard shows top 20 holdings by allocation | Dashboard is a summary view. Full list on Holdings page. 83 rows below the fold defeats the "health at a glance" design goal. |
+| AD-S15-3 | Staleness banner adapts based on stale ratio | "80 instruments stale" reads as system failure. "Prices updating — 3 of 83 refreshed" reads as progress. |
+| AD-S15-4 | Quote provider chain: Tiingo batch → FMP single → AV single → cache | Cheapest per-instrument call first. FMP and AV as fallbacks for instruments Tiingo misses (e.g., mutual funds not on IEX). |
 
 ---
 
@@ -115,10 +119,11 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-1 through KL-6).
 4. ~~UAT with real portfolio~~ — Completed (Session 13)
 5. ~~Bulk import idempotency~~ — Completed (Session 14)
 6. ~~Instrument name resolution~~ — Completed (Session 14)
-7. **UAT acceptance criteria sweep** — Verify all 11 criteria + 5 advisor intents against real portfolio
-8. **Holiday/half-day market calendar** — Reduce wasted API calls on market holidays
-9. **Advisor context window management** — Token counting, summary generation for long threads
-10. **Responsive refinements** — Tablet/mobile layout adjustments
+7. ~~Quote pipeline unblock~~ — Completed (Session 15)
+8. **UAT acceptance criteria sweep** — Verify all 11 criteria + 5 advisor intents against real portfolio
+9. **Holiday/half-day market calendar** — Reduce wasted API calls on market holidays
+10. **Advisor context window management** — Token counting, summary generation for long threads
+11. **Responsive refinements** — Tablet/mobile layout adjustments
 
 ---
 
@@ -138,8 +143,8 @@ Database at `apps/web/data/portfolio.db`.
 Seed with `cd apps/web && npx prisma db seed`.
 
 Environment variables required in `apps/web/.env.local`:
-- `FMP_API_KEY` — Financial Modeling Prep (search + quotes)
+- `FMP_API_KEY` — Financial Modeling Prep (search + single-symbol fallback quotes)
 - `ALPHA_VANTAGE_API_KEY` — Alpha Vantage (backup quotes)
-- `TIINGO_API_KEY` — Tiingo (historical bars)
+- `TIINGO_API_KEY` — Tiingo (batch quotes + historical bars)
 - `TIINGO_RPH=50` — Tiingo requests per hour
 - `TIINGO_RPD=1000` — Tiingo requests per day
