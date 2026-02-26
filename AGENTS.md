@@ -21,7 +21,7 @@
 | **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Local woff2 via next/font/local (Session 8 H-5) |
 | **Charting** | TradingView Lightweight Charts 5.1.0 | MIT license, v5 API: `chart.addSeries(AreaSeries, opts)` |
 | **Monorepo** | pnpm 10.30.1 workspaces | Native, fast, no Turborepo/Nx needed |
-| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 598+ tests passing |
+| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 677 tests passing |
 | **Validation** | Zod 4.3.6 | Input validation for API routes |
 | **IDs** | ULID 2.x | Sortable, no coordination, SQLite-friendly |
 | **Process manager** | concurrently 9.x | Runs Next.js + scheduler together via `pnpm dev` |
@@ -64,7 +64,7 @@ All decisions are **final unless explicitly revisited** in a planning session. R
 |----------|--------|-----|
 | Three providers | FMP (search + quotes via `/stable/`), Tiingo (historical daily bars), Alpha Vantage (backup quotes) | FMP `/api/v3/` dead since Aug 2025. Stooq deprecated (no formal API). Tiingo: REST API, 30+ years of data, documented limits. |
 | Flat polling | All instruments polled at equal interval. No priority tiers. | Single user, not day-trading. Tiered polling adds ~150 LOC for no user-facing benefit. |
-| Weekday-only calendar | `isTradingDay()` = Monday–Friday check. No holiday awareness. | Polling on a holiday wastes a few API calls. Staleness indicator already communicates the gap. No incorrect data produced. |
+| Weekday + holiday calendar | `isTradingDay()` = weekday check + NYSE holiday list (2025-2026) for US exchanges. | Static holiday set, updated annually. Half-days not tracked (negligible waste). Non-US exchanges unaffected. |
 | Configurable rate limits | Provider limits read from env vars, not hardcoded. | When providers change free tiers, update `.env.local` — no code changes. |
 | Standalone scheduler | Long-lived Node process separate from Next.js. | Next.js request-scoped execution model can't sustain a polling loop. |
 
@@ -82,7 +82,7 @@ All decisions are **final unless explicitly revisited** in a planning session. R
 | Decision | Detail | Why |
 |----------|--------|-----|
 | Cached data only (MVP) | Advisor reads LatestQuote and analytics caches. No live fetches, no web search. | Small, predictable tool surface. No side effects from chat. No rate limit risk. |
-| Four tools | `getPortfolioSnapshot`, `getHolding`, `getTransactions`, `getQuotes` | Covers all five intent categories (cross-holding synthesis, tax-aware reasoning, performance attribution, concentration awareness, staleness checks). |
+| Five tools | `getTopHoldings`, `getPortfolioSnapshot`, `getHolding`, `getTransactions`, `getQuotes` | `getTopHoldings` added in S17 for efficient 83-instrument scale. Covers all five intent categories. |
 | Provider-agnostic adapter | `LLMAdapter` interface. Anthropic implementation for MVP. | Adding OpenAI is trivial later. Interface prevents vendor lock-in. |
 | FIFO lot accounting only | No specific identification, no LIFO. | Industry standard for retail investors. Matches what brokerages report. |
 

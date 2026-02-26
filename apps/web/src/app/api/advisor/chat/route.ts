@@ -12,6 +12,7 @@ import {
   createGetHoldingExecutor,
   createGetTransactionsExecutor,
   createGetQuotesExecutor,
+  createGetTopHoldingsExecutor,
 } from '@stalker/advisor';
 import type { Message, LLMAdapter } from '@stalker/advisor';
 import { PrismaSnapshotStore } from '@/lib/prisma-snapshot-store';
@@ -101,7 +102,21 @@ function buildToolExecutors(): Record<string, (args: Record<string, unknown>) =>
           };
         });
 
+        // Build top-5 summary for quick LLM reference
+        const sortedByAllocation = [...holdings].sort((a, b) => {
+          const pctA = parseFloat(a.allocation.replace('%', ''));
+          const pctB = parseFloat(b.allocation.replace('%', ''));
+          return pctB - pctA;
+        });
+        const top5 = sortedByAllocation.slice(0, 5).map((h) => `${h.symbol} (${h.allocation})`).join(', ');
+
+        // Check stale quotes
+        const staleCount = await prisma.latestQuote.count({
+          where: { asOf: { lt: new Date(Date.now() - 2 * 60 * 60 * 1000) } },
+        });
+
         return {
+          summary: `Portfolio: ${holdings.length} holdings, total value ${`$${formatNum(last.totalValue)}`}. Top 5 by allocation: ${top5}. Stale quotes: ${staleCount} of ${holdings.length}.`,
           totalValue: `$${formatNum(last.totalValue)}`,
           totalCostBasis: `$${formatNum(last.totalCostBasis)}`,
           unrealizedPnl: `$${formatNum(last.unrealizedPnl)}`,
@@ -287,11 +302,71 @@ function buildToolExecutors(): Record<string, (args: Record<string, unknown>) =>
     },
   });
 
+  const topHoldingsExecutor = createGetTopHoldingsExecutor({
+    fetchTopHoldings: async (count: number, sortBy: string) => {
+      const snapshotStore = new PrismaSnapshotStore(prisma);
+      const now = new Date();
+      const endDateStr = toDateStr(now);
+      // Look back 7 days to find the latest snapshot
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() - 7);
+      const startDateStr = toDateStr(d);
+
+      const cached = await snapshotStore.getRange(startDateStr, endDateStr);
+      if (cached.length === 0) {
+        return { holdings: [], message: 'No cached portfolio snapshots available.' };
+      }
+
+      const last = cached[cached.length - 1]!;
+      const holdings = Object.entries(last.holdingsJson).map(([symbol, entry]) => {
+        const h = entry as { qty: { toString(): string }; value: { toString(): string }; costBasis: { toString(): string } };
+        const value = toDecimal(h.value.toString());
+        const costBasis = toDecimal(h.costBasis.toString());
+        const unrealizedPnl = value.minus(costBasis);
+        const allocation = last.totalValue.isZero()
+          ? toDecimal('0')
+          : value.dividedBy(last.totalValue).times(100);
+        return {
+          symbol,
+          quantity: h.qty.toString(),
+          marketValue: `$${formatNum(value)}`,
+          costBasis: `$${formatNum(costBasis)}`,
+          unrealizedPnl: `$${formatNum(unrealizedPnl)}`,
+          allocation: `${allocation.toFixed(2)}%`,
+          _sortValue: sortBy === 'value' ? value
+            : sortBy === 'pnl' ? unrealizedPnl
+            : allocation, // default: allocation
+        };
+      });
+
+      // Sort descending by the chosen metric
+      holdings.sort((a, b) => {
+        const aVal = a._sortValue;
+        const bVal = b._sortValue;
+        return bVal.minus(aVal).toNumber();
+      });
+
+      // Strip internal sort field and truncate
+      const result = holdings.slice(0, count).map(({ _sortValue, ...rest }) => rest);
+
+      // Stale quote count
+      const staleCount = await prisma.latestQuote.count({
+        where: { asOf: { lt: new Date(Date.now() - 2 * 60 * 60 * 1000) } },
+      });
+
+      return {
+        summary: `Portfolio: ${holdings.length} holdings, total value $${formatNum(last.totalValue)}. Showing top ${count} by ${sortBy}. Stale quotes: ${staleCount} of ${holdings.length}.`,
+        holdings: result,
+      };
+    },
+  });
+
   return {
     getPortfolioSnapshot: snapshotExecutor,
     getHolding: holdingExecutor,
     getTransactions: transactionsExecutor,
     getQuotes: quotesExecutor,
+    getTopHoldings: topHoldingsExecutor,
   };
 }
 

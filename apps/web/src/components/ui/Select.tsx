@@ -16,6 +16,7 @@ interface SelectProps {
   value?: string;
   onChange?: (value: string) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 export function Select({
@@ -26,6 +27,7 @@ export function Select({
   value,
   onChange,
   className,
+  disabled,
 }: SelectProps) {
   const generatedId = useId();
 
@@ -50,11 +52,13 @@ export function Select({
         id={generatedId}
         value={value}
         onChange={handleChange}
+        disabled={disabled}
         className={cn(
           "bg-bg-tertiary border border-border-primary rounded-md px-3 py-2 text-text-primary",
           "focus:border-accent-primary focus:ring-1 focus:ring-accent-primary focus:outline-none",
           "transition-colors appearance-none",
           error && "border-accent-negative focus:border-accent-negative focus:ring-accent-negative",
+          disabled && "opacity-60 cursor-not-allowed",
           className,
         )}
       >

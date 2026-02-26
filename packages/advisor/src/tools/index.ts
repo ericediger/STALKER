@@ -22,11 +22,18 @@ export {
 } from './get-quotes.js';
 export type { QuotesDeps } from './get-quotes.js';
 
+export {
+  getTopHoldingsDefinition,
+  createGetTopHoldingsExecutor,
+} from './get-top-holdings.js';
+export type { TopHoldingsDeps } from './get-top-holdings.js';
+
 import type { ToolDefinition } from '../llm-adapter.js';
 import { getPortfolioSnapshotDefinition } from './get-portfolio-snapshot.js';
 import { getHoldingDefinition } from './get-holding.js';
 import { getTransactionsDefinition } from './get-transactions.js';
 import { getQuotesDefinition } from './get-quotes.js';
+import { getTopHoldingsDefinition } from './get-top-holdings.js';
 
 /**
  * All tool definitions for the advisor.
@@ -36,4 +43,5 @@ export const allToolDefinitions: ToolDefinition[] = [
   getHoldingDefinition,
   getTransactionsDefinition,
   getQuotesDefinition,
+  getTopHoldingsDefinition,
 ];

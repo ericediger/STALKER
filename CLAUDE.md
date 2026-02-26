@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-24 (Post-Session 12 — API Wiring + Pipeline Soak)
+**Last Updated:** 2026-02-26 (Post-Session 17 — Production Hardening)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -335,7 +335,7 @@ Spacing: `p-card` (1rem), `p-section` (1.5rem), `px-page` (2rem).
 |-----------|-----------|-------|
 | `Button` | `variant`: primary/secondary/ghost/danger, `size`: sm/md/lg, `loading`, `disabled` | Focus ring, spinner |
 | `Input` | `label`, `error`, `hint` + standard HTML input props | Dark bg, error styling |
-| `Select` | `label`, `options`, `error`, `placeholder` | Native select, styled like Input |
+| `Select` | `label`, `options`, `error`, `placeholder`, `disabled` | Native select, styled like Input |
 | `Card` | `title?`, `children`, `className` | `bg-bg-secondary` container |
 | `Badge` | `variant`: positive/negative/warning/info/neutral, `size`: sm/md | Pill-shaped |
 | `Table` | `columns`, `data`, `onSort`, `emptyMessage` | Numeric cols right-aligned in font-mono |
@@ -543,11 +543,12 @@ Note: The field is `firstViolationDate` (not `firstNegativeDate` as in the maste
 |------|---------|
 | `llm-adapter.ts` | Provider-agnostic interface: `LLMAdapter`, `Message`, `ToolCall`, `ToolDefinition`, `LLMResponse` |
 | `anthropic-adapter.ts` | Anthropic Claude implementation. Handles `tool_use`/`tool_result` translation (W-5). Non-streaming. |
-| `tools/get-portfolio-snapshot.ts` | Tool definition + dependency-injected executor for portfolio overview |
+| `tools/get-top-holdings.ts` | Tool definition + executor for top N holdings by metric (S17) |
+| `tools/get-portfolio-snapshot.ts` | Tool definition + executor for portfolio overview (enhanced with summary in S17) |
 | `tools/get-holding.ts` | Tool definition + executor for single position detail with FIFO lots |
 | `tools/get-transactions.ts` | Tool definition + executor for filtered transaction list |
 | `tools/get-quotes.ts` | Tool definition + executor for quote freshness check |
-| `tools/index.ts` | Barrel export + `allToolDefinitions` array |
+| `tools/index.ts` | Barrel export + `allToolDefinitions` array (5 tools) |
 | `tool-loop.ts` | Tool execution loop: LLM call → tool execution → loop (max 5 iterations) |
 | `system-prompt.ts` | System prompt covering all 5 intent categories |
 | `index.ts` | Package barrel export |
@@ -561,7 +562,7 @@ Note: The field is `firstViolationDate` (not `firstNegativeDate` as in the maste
 | GET | `/api/advisor/threads/[id]` | Thread detail with all messages |
 | DELETE | `/api/advisor/threads/[id]` | Delete thread + messages, return 204 |
 
-**Chat route internals:** `buildToolExecutors()` creates Prisma-backed executors for all 4 tools. All Decimal values formatted as `$X,XXX.XX` strings via `formatNum()`. Lot data uses `Lot.price` (per-unit cost) and `Lot.openedAt`.
+**Chat route internals:** `buildToolExecutors()` creates Prisma-backed executors for all 5 tools. All Decimal values formatted as `$X,XXX.XX` strings via `formatNum()`. Lot data uses `Lot.price` (per-unit cost) and `Lot.openedAt`. `getTopHoldings` returns top N holdings by allocation/value/pnl with portfolio summary. `getPortfolioSnapshot` includes summary header (total holdings, value, top 5, stale count).
 
 ### Advisor Frontend (`apps/web/src/components/advisor/`)
 

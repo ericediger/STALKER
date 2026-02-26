@@ -9,16 +9,19 @@ export {
   getHoldingDefinition,
   getTransactionsDefinition,
   getQuotesDefinition,
+  getTopHoldingsDefinition,
   createGetPortfolioSnapshotExecutor,
   createGetHoldingExecutor,
   createGetTransactionsExecutor,
   createGetQuotesExecutor,
+  createGetTopHoldingsExecutor,
 } from './tools/index.js';
 export type {
   PortfolioSnapshotDeps,
   HoldingDeps,
   TransactionsDeps,
   QuotesDeps,
+  TopHoldingsDeps,
 } from './tools/index.js';
 
 // Tool Loop

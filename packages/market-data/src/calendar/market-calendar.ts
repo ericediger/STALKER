@@ -8,21 +8,39 @@ import {
   SESSION_CLOSE_HOUR,
   SESSION_CLOSE_MINUTE,
 } from '@stalker/shared';
+import { isNYSEHoliday } from './nyse-holidays.js';
 
 function getTimezone(exchange: string): string {
   return EXCHANGE_TIMEZONE_MAP[exchange] ?? DEFAULT_TIMEZONE;
 }
 
+/** US exchanges that observe NYSE holidays. */
+const NYSE_EXCHANGES = new Set(['NYSE', 'NASDAQ', 'AMEX']);
+
 /**
- * Returns true if the date falls on a weekday (Mon-Fri) in the exchange's timezone.
- * Does NOT account for market holidays (MVP scope: weekdays only).
+ * Returns true if the date falls on a weekday (Mon-Fri) in the exchange's timezone
+ * and is not a known NYSE holiday (for US exchanges).
  */
 export function isTradingDay(date: Date, exchange: string): boolean {
   const tz = getTimezone(exchange);
   const zonedDate = toZonedTime(date, tz);
   const dayOfWeek = getDay(zonedDate);
   // 0 = Sunday, 6 = Saturday
-  return dayOfWeek >= 1 && dayOfWeek <= 5;
+  if (dayOfWeek < 1 || dayOfWeek > 5) {
+    return false;
+  }
+
+  // Check NYSE holidays for US exchanges
+  if (NYSE_EXCHANGES.has(exchange)) {
+    const y = zonedDate.getFullYear();
+    const m = String(zonedDate.getMonth() + 1).padStart(2, '0');
+    const d = String(zonedDate.getDate()).padStart(2, '0');
+    if (isNYSEHoliday(`${y}-${m}-${d}`)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**

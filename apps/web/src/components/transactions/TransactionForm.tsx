@@ -34,6 +34,8 @@ interface TransactionFormProps {
   instruments: InstrumentOption[];
   onSuccess: () => void;
   onError: (message: string) => void;
+  /** When set, pre-selects the instrument and disables the dropdown (used on Holding Detail). */
+  defaultInstrumentId?: string;
 }
 
 function getDateFromIso(isoString: string): string {
@@ -55,9 +57,10 @@ export function TransactionForm({
   instruments,
   onSuccess,
   onError,
+  defaultInstrumentId,
 }: TransactionFormProps) {
   const [fields, setFields] = useState<TransactionFormFields>({
-    instrumentId: transaction?.instrumentId ?? "",
+    instrumentId: transaction?.instrumentId ?? defaultInstrumentId ?? "",
     type: transaction?.type ?? "BUY",
     quantity: transaction?.quantity ?? "",
     price: transaction?.price ?? "",
@@ -208,6 +211,7 @@ export function TransactionForm({
         value={fields.instrumentId}
         onChange={(v) => updateField("instrumentId", v)}
         error={errors.instrumentId}
+        disabled={!!defaultInstrumentId}
       />
 
       {/* Type toggle */}

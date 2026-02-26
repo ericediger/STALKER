@@ -14,13 +14,14 @@ describe('advisor package exports', () => {
     expect(SYSTEM_PROMPT.length).toBeGreaterThan(100);
   });
 
-  it('exports allToolDefinitions with 4 tools', () => {
-    expect(allToolDefinitions).toHaveLength(4);
+  it('exports allToolDefinitions with 5 tools', () => {
+    expect(allToolDefinitions).toHaveLength(5);
     const names = allToolDefinitions.map((t) => t.name);
     expect(names).toContain('getPortfolioSnapshot');
     expect(names).toContain('getHolding');
     expect(names).toContain('getTransactions');
     expect(names).toContain('getQuotes');
+    expect(names).toContain('getTopHoldings');
   });
 
   it('each tool definition has name, description, and parameters', () => {

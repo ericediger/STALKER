@@ -6,28 +6,64 @@ interface HoldingTransactionsProps {
   transactions: HoldingTransaction[];
   onEdit?: (tx: HoldingTransaction) => void;
   onDelete?: (tx: HoldingTransaction) => void;
+  onAdd?: () => void;
 }
 
 export function HoldingTransactions({
   transactions,
   onEdit,
   onDelete,
+  onAdd,
 }: HoldingTransactionsProps) {
   const sorted = [...transactions].sort(
     (a, b) => new Date(b.tradeAt).getTime() - new Date(a.tradeAt).getTime(),
   );
 
+  const addButton = onAdd ? (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="inline-flex items-center gap-1 text-sm text-accent-primary hover:text-accent-primary/80 transition-colors font-medium"
+      aria-label="Add transaction"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </svg>
+      Add Transaction
+    </button>
+  ) : null;
+
   if (sorted.length === 0) {
     return (
-      <div className="bg-bg-secondary rounded-lg border border-border-primary p-6 text-center text-text-secondary text-sm">
-        No transactions
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-heading text-text-primary">Transactions</h2>
+          {addButton}
+        </div>
+        <div className="bg-bg-secondary rounded-lg border border-border-primary p-6 text-center text-text-secondary text-sm">
+          No transactions
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-lg font-heading text-text-primary">Transactions</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-heading text-text-primary">Transactions</h2>
+        {addButton}
+      </div>
       <div className="bg-bg-secondary rounded-lg border border-border-primary overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>

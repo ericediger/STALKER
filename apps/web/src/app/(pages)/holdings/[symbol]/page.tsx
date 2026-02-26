@@ -26,6 +26,7 @@ export default function HoldingDetailPage() {
   const { data, isLoading, error, refetch } = useHoldingDetail(symbol);
   const { data: instruments } = useInstruments();
 
+  const [showAddTx, setShowAddTx] = useState(false);
   const [editTx, setEditTx] = useState<HoldingTransaction | null>(null);
   const [deleteTx, setDeleteTx] = useState<HoldingTransaction | null>(null);
   const [showDeleteInstrument, setShowDeleteInstrument] = useState(false);
@@ -149,6 +150,17 @@ export default function HoldingDetailPage() {
         transactions={data.transactions}
         onEdit={setEditTx}
         onDelete={setDeleteTx}
+        onAdd={() => setShowAddTx(true)}
+      />
+
+      {/* Add Transaction Modal */}
+      <TransactionFormModal
+        open={showAddTx}
+        onClose={() => setShowAddTx(false)}
+        mode="create"
+        instruments={instruments ?? []}
+        onSuccess={refetch}
+        defaultInstrumentId={data.instrumentId}
       />
 
       {/* Edit Transaction Modal */}

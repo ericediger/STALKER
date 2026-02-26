@@ -24,6 +24,8 @@ interface TransactionFormModalProps {
   transaction?: ExistingTransaction;
   instruments: InstrumentOption[];
   onSuccess: () => void;
+  /** When set, pre-selects the instrument and disables the dropdown. */
+  defaultInstrumentId?: string;
 }
 
 export function TransactionFormModal({
@@ -33,6 +35,7 @@ export function TransactionFormModal({
   transaction,
   instruments,
   onSuccess,
+  defaultInstrumentId,
 }: TransactionFormModalProps) {
   const { toast } = useToast();
 
@@ -66,6 +69,7 @@ export function TransactionFormModal({
         instruments={instruments}
         onSuccess={handleSuccess}
         onError={handleError}
+        defaultInstrumentId={defaultInstrumentId}
       />
     </Modal>
   );

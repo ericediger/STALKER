@@ -29,6 +29,7 @@ vi.mock('@stalker/advisor', () => ({
   createGetHoldingExecutor: vi.fn(() => vi.fn()),
   createGetTransactionsExecutor: vi.fn(() => vi.fn()),
   createGetQuotesExecutor: vi.fn(() => vi.fn()),
+  createGetTopHoldingsExecutor: vi.fn(() => vi.fn()),
 }));
 
 // Mock analytics and market-data deps used by buildToolExecutors
