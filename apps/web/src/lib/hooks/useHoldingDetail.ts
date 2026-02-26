@@ -61,17 +61,31 @@ export function useHoldingDetail(symbol: string) {
 
   useEffect(() => {
     if (!symbol) return;
+    let cancelled = false;
     setIsLoading(true);
     setError(null);
 
-    fetch(`/api/portfolio/holdings/${encodeURIComponent(symbol)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(setData)
-      .catch(setError)
-      .finally(() => setIsLoading(false));
+    const doFetch = async (retriesLeft: number): Promise<void> => {
+      const res = await fetch(`/api/portfolio/holdings/${encodeURIComponent(symbol)}`);
+      if (!res.ok) {
+        // Retry once on 500 (transient SQLite contention)
+        if (res.status === 500 && retriesLeft > 0) {
+          await new Promise((r) => setTimeout(r, 500));
+          if (!cancelled) return doFetch(retriesLeft - 1);
+          return;
+        }
+        const body = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      return res.json();
+    };
+
+    doFetch(1)
+      .then((result) => { if (!cancelled) setData(result as HoldingDetail); })
+      .catch((err: unknown) => { if (!cancelled) setError(err instanceof Error ? err : new Error(String(err))); })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+
+    return () => { cancelled = true; };
   }, [symbol, fetchKey]);
 
   const refetch = () => setFetchKey((k) => k + 1);

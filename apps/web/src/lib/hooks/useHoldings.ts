@@ -15,7 +15,11 @@ export function useHoldings() {
 
   useEffect(() => {
     let cancelled = false;
-    setIsLoading(true);
+    // Only show loading skeleton on initial load (data === null).
+    // On refetch, keep existing data visible to preserve table state (pagination, scroll).
+    if (data === null) {
+      setIsLoading(true);
+    }
     fetch("/api/portfolio/holdings")
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -33,6 +37,7 @@ export function useHoldings() {
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchKey]);
 
   return { data, isLoading, error, refetch };

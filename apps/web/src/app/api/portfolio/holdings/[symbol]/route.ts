@@ -122,6 +122,7 @@ export async function GET(
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`GET /api/portfolio/holdings/[symbol] error for "${symbol}":`, error);
     return apiError(500, 'INTERNAL_ERROR', message);
   }
 }

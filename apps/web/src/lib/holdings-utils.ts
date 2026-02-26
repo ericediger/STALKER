@@ -5,6 +5,7 @@ export type SortColumn =
   | "name"
   | "firstBuyDate"
   | "qty"
+  | "avgCost"
   | "price"
   | "value"
   | "costBasis"
@@ -26,6 +27,16 @@ export interface Holding {
   unrealizedPnlPct: string;
   allocation: string;
   firstBuyDate: string | null;
+}
+
+/**
+ * Compute average cost per share: costBasis / totalQuantity.
+ * Returns null for zero-quantity positions (fully closed).
+ */
+export function avgCostPerShare(costBasis: string, totalQuantity: string): string | null {
+  const qty = new Decimal(totalQuantity);
+  if (qty.isZero()) return null;
+  return new Decimal(costBasis).div(qty).toFixed(2);
 }
 
 const STRING_COLUMNS: ReadonlySet<SortColumn> = new Set(["symbol", "name"]);
@@ -52,6 +63,14 @@ export function sortHoldings(
       if (aVal === null) return 1;
       if (bVal === null) return -1;
       return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+    }
+    if (column === "avgCost") {
+      const aVal = avgCostPerShare(a.costBasis, a.qty);
+      const bVal = avgCostPerShare(b.costBasis, b.qty);
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return 1;
+      if (bVal === null) return -1;
+      return new Decimal(aVal).cmp(new Decimal(bVal));
     }
     const aVal = new Decimal(a[column]);
     const bVal = new Decimal(b[column]);

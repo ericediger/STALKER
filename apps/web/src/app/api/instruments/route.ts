@@ -99,7 +99,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 }
 
 /**
- * Fetch ~2 years of daily price bars from Tiingo and bulk-insert into PriceBar table.
+ * Fetch ~10 years of daily price bars from Tiingo and bulk-insert into PriceBar table.
  * Updates firstBarDate on the instrument after successful backfill.
  */
 async function triggerBackfill(prismaInst: {
@@ -124,10 +124,10 @@ async function triggerBackfill(prismaInst: {
     providerSymbolMap: JSON.parse(prismaInst.providerSymbolMap) as Record<string, string>,
   };
 
-  // Fetch ~2 years of daily bars
+  // Fetch ~10 years of daily bars (AD-S18-1)
   const end = new Date();
   const start = new Date();
-  start.setFullYear(start.getFullYear() - 2);
+  start.setFullYear(start.getFullYear() - 10);
 
   const bars = await service.getHistory(domainInstrument, start, end);
 

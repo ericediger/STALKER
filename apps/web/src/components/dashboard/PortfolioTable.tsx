@@ -7,7 +7,7 @@ import { ValueChange } from "@/components/ui/ValueChange";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { sortHoldings, computeTotals } from "@/lib/holdings-utils";
+import { sortHoldings, computeTotals, avgCostPerShare } from "@/lib/holdings-utils";
 import type { Holding, SortColumn, SortDirection } from "@/lib/holdings-utils";
 
 /* -------------------------------------------------------------------------- */
@@ -38,11 +38,12 @@ const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Name", align: "left", sortable: true },
   { key: "firstBuyDate", label: "First Buy", align: "left", sortable: true },
   { key: "qty", label: "Qty", align: "right", sortable: true },
-  { key: "price", label: "Price", align: "right", sortable: true },
+  { key: "avgCost", label: "Avg Cost", align: "right", sortable: true },
+  { key: "costBasis", label: "Cost Basis", align: "right", sortable: true },
+  { key: "price", label: "Current Price", align: "right", sortable: true },
   { key: "value", label: "Value", align: "right", sortable: true },
   { key: "unrealizedPnl", label: "PnL $", align: "right", sortable: true },
   { key: "unrealizedPnlPct", label: "PnL %", align: "right", sortable: true },
-  { key: "costBasis", label: "Cost Basis", align: "right", sortable: true },
   { key: "allocation", label: "Alloc %", align: "right", sortable: true },
   { key: "actions", label: "", align: "right", sortable: false },
 ];
@@ -341,15 +342,16 @@ export function PortfolioTable({
               <td className="px-3 py-2" />
               <td className="px-3 py-2" />
               <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary font-semibold text-sm">
+                {formatCurrency(totals.totalCostBasis)}
+              </td>
+              <td className="px-3 py-2" />
+              <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary font-semibold text-sm">
                 {formatCurrency(totals.totalValue)}
               </td>
               <td className="px-3 py-2 text-right font-semibold text-sm">
                 <ValueChange value={totals.totalUnrealizedPnl} format="currency" />
               </td>
               <td className="px-3 py-2" />
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary font-semibold text-sm">
-                {formatCurrency(totals.totalCostBasis)}
-              </td>
               <td className="px-3 py-2" />
               <td className="px-3 py-2" />
             </tr>
@@ -433,6 +435,15 @@ function PortfolioTableRow({
         {formatQuantity(holding.qty)}
       </td>
       <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
+        {(() => {
+          const avg = avgCostPerShare(holding.costBasis, holding.qty);
+          return avg ? formatCurrency(avg) : "\u2014";
+        })()}
+      </td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
+        {formatCurrency(holding.costBasis)}
+      </td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
         {formatCurrency(holding.price)}
       </td>
       <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
@@ -443,9 +454,6 @@ function PortfolioTableRow({
       </td>
       <td className="px-3 py-2 text-right text-sm">
         <ValueChange value={holding.unrealizedPnlPct} format="percent" />
-      </td>
-      <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
-        {formatCurrency(holding.costBasis)}
       </td>
       <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
         {formatPercent(holding.allocation)}

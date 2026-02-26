@@ -29,7 +29,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "symbol", label: "Symbol", align: "left", sortable: true },
   { key: "name", label: "Name", align: "left", sortable: true },
   { key: "qty", label: "Qty", align: "right", sortable: true },
-  { key: "price", label: "Price", align: "right", sortable: true },
+  { key: "price", label: "Current Price", align: "right", sortable: true },
   { key: "value", label: "Value", align: "right", sortable: true },
   { key: "unrealizedPnl", label: "PnL $", align: "right", sortable: true },
   { key: "unrealizedPnlPct", label: "PnL %", align: "right", sortable: true },

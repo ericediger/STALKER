@@ -1,6 +1,6 @@
 # KNOWN-LIMITATIONS.md — STALKER Known Gaps
 
-**Last Updated:** 2026-02-26 (Session 17)
+**Last Updated:** 2026-02-26 (Session 18)
 
 This document catalogues known limitations in STALKER. Each entry includes the impact assessment and any existing mitigations.
 

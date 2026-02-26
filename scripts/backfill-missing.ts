@@ -31,7 +31,7 @@ async function main() {
 
   const end = new Date();
   const start = new Date();
-  start.setFullYear(start.getFullYear() - 2);
+  start.setFullYear(start.getFullYear() - 10);
 
   let success = 0;
   let failed = 0;

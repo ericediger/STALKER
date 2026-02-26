@@ -64,6 +64,7 @@ export function AddInstrumentModal({
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedFromSearch, setSelectedFromSearch] = useState(false);
+  const [addedSymbol, setAddedSymbol] = useState<string | null>(null);
 
   // Initial purchase fields (optional)
   const [buyQty, setBuyQty] = useState("");
@@ -90,6 +91,7 @@ export function AddInstrumentModal({
     setBuyFees("");
     setPriceAutoFilled(false);
     setFetchingPrice(false);
+    setAddedSymbol(null);
     userEditedBuyPrice.current = false;
   }, []);
 
@@ -219,7 +221,6 @@ export function AddInstrumentModal({
               variant: "success",
             });
           } else {
-            // Instrument was created but transaction failed — still show success for instrument
             toast({
               message: `${symbol.toUpperCase()} added. Transaction could not be created — add it manually.`,
               variant: "warning",
@@ -232,7 +233,7 @@ export function AddInstrumentModal({
           });
         }
 
-        handleClose();
+        setAddedSymbol(symbol.toUpperCase());
         onSuccess();
       } catch (err: unknown) {
         const message =
@@ -245,8 +246,45 @@ export function AddInstrumentModal({
     [symbol, name, type, exchange, hasBuyData, buyQty, buyPrice, buyDate, buyFees, toast, handleClose, onSuccess],
   );
 
+  const handleAddAnother = useCallback(() => {
+    resetForm();
+  }, [resetForm]);
+
+  const handleDone = useCallback(() => {
+    resetForm();
+    onClose();
+  }, [resetForm, onClose]);
+
   return (
     <Modal open={open} onClose={handleClose} title="Add Instrument">
+      {addedSymbol ? (
+        <div className="space-y-4 py-2">
+          <div className="text-center">
+            <p className="text-text-primary text-lg font-medium">
+              {addedSymbol} added successfully
+            </p>
+            <p className="text-text-secondary text-sm mt-1">
+              Price history is being backfilled in the background.
+            </p>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={handleAddAnother}
+            >
+              Add Another
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-1"
+              onClick={handleDone}
+            >
+              Done
+            </Button>
+          </div>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-4">
         <SymbolSearchInput
           value={searchQuery}
@@ -394,6 +432,7 @@ export function AddInstrumentModal({
           {hasBuyData ? "Add Instrument + Buy" : "Add Instrument"}
         </Button>
       </form>
+      )}
     </Modal>
   );
 }

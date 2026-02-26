@@ -157,7 +157,7 @@ export async function findOrCreateInstrument(symbol: string, skipBackfill = fals
 }
 
 /**
- * Fetch ~2 years of daily price bars from Tiingo and bulk-insert into PriceBar table.
+ * Fetch ~10 years of daily price bars from Tiingo and bulk-insert into PriceBar table.
  * Updates firstBarDate on the instrument after successful backfill.
  */
 export async function triggerBackfill(prismaInst: PrismaInstrument): Promise<void> {
@@ -171,7 +171,7 @@ export async function triggerBackfill(prismaInst: PrismaInstrument): Promise<voi
 
   const end = new Date();
   const start = new Date();
-  start.setFullYear(start.getFullYear() - 2);
+  start.setFullYear(start.getFullYear() - 10);
 
   const bars = await service.getHistory(domainInstrument, start, end);
 

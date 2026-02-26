@@ -4,6 +4,7 @@ import {
   computeAllocation,
   computeTotals,
   isSymbolStale,
+  avgCostPerShare,
   type Holding,
 } from "../holdings-utils";
 
@@ -150,6 +151,46 @@ describe("computeTotals", () => {
     expect(totals.totalValue).toBe("0");
     expect(totals.totalCostBasis).toBe("0");
     expect(totals.totalUnrealizedPnl).toBe("0");
+  });
+});
+
+describe("avgCostPerShare", () => {
+  it("returns correct value for normal case", () => {
+    expect(avgCostPerShare("10000", "50")).toBe("200.00");
+  });
+
+  it("handles Decimal precision", () => {
+    expect(avgCostPerShare("9999.99", "33")).toBe("303.03");
+  });
+
+  it("returns null for zero quantity", () => {
+    expect(avgCostPerShare("10000", "0")).toBeNull();
+  });
+
+  it("handles small fractional shares", () => {
+    expect(avgCostPerShare("500", "0.5")).toBe("1000.00");
+  });
+});
+
+describe("sortHoldings by avgCost", () => {
+  it("sorts by avgCost ascending (nulls last)", () => {
+    const holdings: Holding[] = [
+      makeHolding({ symbol: "B", costBasis: "3000", qty: "10" }), // avg 300
+      makeHolding({ symbol: "A", costBasis: "1000", qty: "10" }), // avg 100
+      makeHolding({ symbol: "C", costBasis: "2000", qty: "10" }), // avg 200
+    ];
+    const sorted = sortHoldings(holdings, "avgCost", "asc");
+    expect(sorted.map((h) => h.symbol)).toEqual(["A", "C", "B"]);
+  });
+
+  it("sorts by avgCost with zero-qty positions last", () => {
+    const holdings: Holding[] = [
+      makeHolding({ symbol: "B", costBasis: "3000", qty: "10" }),
+      makeHolding({ symbol: "A", costBasis: "1000", qty: "0" }), // null avgCost
+      makeHolding({ symbol: "C", costBasis: "2000", qty: "10" }),
+    ];
+    const sorted = sortHoldings(holdings, "avgCost", "asc");
+    expect(sorted.map((h) => h.symbol)).toEqual(["C", "B", "A"]);
   });
 });
 

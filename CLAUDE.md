@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-26 (Post-Session 17 — Production Hardening)
+**Last Updated:** 2026-02-26 (Post-Session 18 — Visual UAT Fixes)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -694,6 +694,52 @@ const {
 | `apps/web/src/lib/__tests__/bulk-parser.test.ts` | 23 | Parser: valid rows, missing fields, invalid dates, negative qty, case-insensitive type, etc. |
 | `apps/web/__tests__/api/transactions/bulk.test.ts` | 8 | Bulk API: happy path, unknown symbols, sell validation, dry run, empty batch, date conversion |
 | `data/test/cross-validate.test.ts` | 3 | 749 sub-checks across Path A/B/C |
+
+---
+
+## Session 18 — Visual UAT Fixes + UX Enhancements
+
+### Backfill Lookback (AD-S18-1)
+
+Default backfill lookback changed from 2 years to **10 years** in all locations:
+- `apps/web/src/app/api/instruments/route.ts` (POST handler)
+- `apps/web/src/lib/auto-create-instrument.ts` (`triggerBackfill`)
+- `scripts/backfill-missing.ts` (one-off script)
+
+New re-backfill script: `scripts/re-backfill-history.ts` — extends price bar history for existing instruments. Batches of 45 with 60s pause for Tiingo rate limits.
+
+### Holdings Table Columns
+
+**New column order:** Symbol | Name | First Buy | Qty | **Avg Cost** | Cost Basis | **Current Price** | Value | PnL $ | PnL % | Alloc % | Actions
+
+- "Price" renamed to "Current Price"
+- "Avg Cost" column added: `avgCostPerShare(costBasis, qty)` in `holdings-utils.ts`
+- "Cost Basis" moved next to "Avg Cost" for logical grouping
+- Avg Cost uses Decimal division with zero-guard (returns null for closed positions)
+
+### Utility Functions
+
+| File | Functions | Notes |
+|------|-----------|-------|
+| `holdings-utils.ts` | `avgCostPerShare()` | `costBasis / qty` via Decimal.js. Returns null if qty is zero. |
+
+### useHoldingDetail Resilience
+
+`useHoldingDetail` hook retries once on HTTP 500 (500ms delay). Error messages now include server error body for diagnostics.
+
+### useHoldings Refetch Behavior
+
+`useHoldings` hook no longer sets `isLoading=true` on refetch — only on initial load. Prevents PortfolioTable unmount/remount that was destroying pagination state.
+
+### "Add Another" Instrument Flow
+
+`AddInstrumentModal` shows success state after creation with two buttons: "Add Another" (resets form) and "Done" (closes modal).
+
+### New Tests (6 new, 683 total)
+
+| File | Tests | Scope |
+|------|-------|-------|
+| `apps/web/src/lib/__tests__/holdings-utils.test.ts` | +6 | avgCostPerShare (4), avgCost sort (2) |
 
 ---
 

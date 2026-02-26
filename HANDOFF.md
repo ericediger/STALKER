@@ -1,14 +1,14 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-26 (Post-Session 17)
-**Last Session:** Session 17 — Production Hardening + Transaction UX Closure
+**Last Updated:** 2026-02-26 (Post-Session 18)
+**Last Session:** Session 18 — Visual UAT Fixes + UX Enhancements
 **Status:** Production Ready
 
 ---
 
 ## Current State
 
-Session 17 closed the transaction CRUD UX gap (created when S16 deleted the Transactions page), tuned the advisor for 83-instrument scale, and added the NYSE holiday calendar. This was the final engineering session before production.
+Session 18 resolved 5 issues from the first visual browser UAT: extended price bar history to cover the full portfolio timeline (Dec 2022+), improved holdings table columns, added resilient refetch, preserved table state on delete, and added "Add Another" to the instrument creation flow.
 
 ### What Exists
 
@@ -16,7 +16,7 @@ Session 17 closed the transaction CRUD UX gap (created when S16 deleted the Tran
 - pnpm workspace monorepo with 7 packages (5 in `packages/`, 1 app, 1 root)
 - TypeScript 5.9.3 with strict mode, zero errors
 - Prisma 6.19.2 with SQLite — all 7 tables defined
-- Vitest 3.2.4 — **677 tests** passing across **59 test files**
+- Vitest 3.2.4 — **683 tests** passing across **59 test files**
 - Next.js 15.5.12 App Router with all API routes + all UI pages (including advisor)
 - Tailwind CSS 4.2 with PostCSS — dark financial theme via CSS `@theme` directives
 - Zod v4 for input validation
@@ -39,42 +39,40 @@ Session 17 closed the transaction CRUD UX gap (created when S16 deleted the Tran
   - MarketDataService with singleton factory (`apps/web/src/lib/market-data-service.ts`)
   - Stooq deprecated (file kept for reference, not in active chain)
 - `@stalker/advisor` — Complete:
-  - **5 tools:** `getTopHoldings` (new), `getPortfolioSnapshot` (enhanced with summary), `getHolding`, `getTransactions`, `getQuotes`
+  - **5 tools:** `getTopHoldings`, `getPortfolioSnapshot` (enhanced with summary), `getHolding`, `getTransactions`, `getQuotes`
   - System prompt with tool selection guidance for efficient 83-instrument handling
 - `@stalker/scheduler` — Complete:
   - Config loader (with Tiingo env vars), budget check, poller with **batch polling** via `pollAllQuotes()`, graceful shutdown
   - Quote provider chain: Tiingo IEX (batch) → FMP (single) → AV (single)
   - 30-minute poll interval (no longer auto-extended for large portfolios since batch = 1 call)
 
-**Session 17 Changes:**
-- **Transaction CRUD on Holding Detail** — "+ Add Transaction" button in transactions section header opens TransactionFormModal in create mode with instrument pre-selected and locked. Edit and delete were already wired.
-- **`defaultInstrumentId` prop** — TransactionForm and TransactionFormModal accept optional `defaultInstrumentId` that pre-selects the instrument and disables the dropdown.
-- **`onAdd` callback on HoldingTransactions** — Shows "+ Add Transaction" button in the section header. Button visible even in empty state.
-- **Select `disabled` prop** — UI Select component now supports `disabled` styling.
-- **`getTopHoldings` advisor tool** — Returns top N holdings by allocation/value/pnl. Reduces context window usage for overview questions.
-- **Portfolio summary in `getPortfolioSnapshot`** — Prepends a summary line (total holdings, total value, top 5, stale count) for quick LLM reference.
-- **Updated system prompt** — 5 tools documented, tool selection guidance added (prefer getTopHoldings for overview).
-- **NYSE holiday calendar** — Static holiday list for 2025-2026. `isTradingDay()` returns false on holidays for NYSE/NASDAQ/AMEX exchanges. Non-US exchanges unaffected.
+**Session 18 Changes:**
+- **Backfill lookback extended to 10 years** (AD-S18-1) — Instruments now get full price history from Tiingo. Re-backfill script added 12,748 bars across 73 instruments. Portfolio chart covers Dec 2022 onward.
+- **Re-backfill script** — `scripts/re-backfill-history.ts` for extending history on existing instruments. Batches of 45 with 60s pause for Tiingo rate limits. Idempotent via date-range dedup.
+- **Holdings table column improvements** — "Avg Cost" column added (Decimal division via `avgCostPerShare()`), "Price" renamed to "Current Price", "Cost Basis" moved next to "Avg Cost" for logical grouping.
+- **Resilient holding detail refetch** — `useHoldingDetail` retries once on HTTP 500 with 500ms delay. Error messages now include server-side message body.
+- **List position preservation** — `useHoldings` hook no longer shows loading skeleton on refetch, preventing PortfolioTable unmount/remount that reset pagination state.
+- **"Add Another" instrument flow** — After successful instrument creation, modal shows success state with "Add Another" and "Done" buttons instead of closing immediately.
+- **Snapshot coverage** — Portfolio value snapshots now cover Dec 29, 2022 through present (813 snapshots, was starting Feb 2024).
 
-**API Layer (Sessions 4–17):**
-- **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete, automatic Tiingo backfill on creation
+**API Layer (Sessions 4–18):**
+- **Instrument CRUD:** POST/GET/GET[id]/DELETE with exchange→timezone mapping, providerSymbolMap, cascade delete, automatic Tiingo backfill on creation (10yr lookback)
 - **Transaction CRUD:** POST/GET/GET[id]/PUT/DELETE with sell validation via `validateTransactionSet()`
 - **Bulk transactions:** POST /api/transactions/bulk — dedup guard, auto-creates missing instruments, sequential backfills, fire-and-forget snapshot rebuild
-- **Portfolio endpoints:** snapshot (read-only), rebuild (explicit POST, 60s timeout), timeseries, holdings (allocation %, firstBuyDate), holdings/[symbol] (lot detail)
+- **Portfolio endpoints:** snapshot (read-only), rebuild (explicit POST, 60s timeout), timeseries, holdings (allocation %, firstBuyDate), holdings/[symbol] (lot detail + error logging)
 - **Market endpoints:** quote (cached), history (price bars), search (live FMP), refresh (live multi-provider), status (multi-provider health summary)
 - **Advisor endpoints:** chat (with 5-tool loop), threads CRUD
 
 **Real Portfolio State:**
 - 83 instruments (all with proper names)
 - 87 transactions
-- ~40,881 price bars
-- 826 portfolio value snapshots
+- ~53,600 price bars (12,748 added in S18 re-backfill)
+- 813 portfolio value snapshots (covering Dec 2022 – present)
 
 ### What Does Not Exist Yet
 
 - Advisor context window management (KL-2/KL-3 — acceptable workarounds exist)
 - Responsive refinements for tablet/mobile (user is on desktop)
-- UAT acceptance criteria sweep (deferred — system is functionally complete)
 
 ### Known Limitations
 
@@ -91,32 +89,32 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-2 through KL-6).
 
 | Metric | Value |
 |--------|-------|
-| Test count (total) | 677 |
+| Test count (total) | 683 |
 | Test files | 59 |
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (all implemented) |
 | API endpoints | 22 (all implemented — no stubs remaining) |
 | UI components | 49 |
 | Data hooks | 12 |
-| Utility modules | 14 (+1: nyse-holidays) |
+| Utility modules | 15 (+1: avgCostPerShare) |
 | UI pages | 4 (Portfolio, Charts, Holding Detail, Settings) |
 | Prisma tables | 7 of 7 |
 | Market data providers | 3 active (FMP, Tiingo, AV) + 1 deprecated (Stooq) |
 | Advisor tools | 5 (getTopHoldings, getPortfolioSnapshot, getHolding, getTransactions, getQuotes) |
-| Real portfolio | 83 instruments, 87 transactions, 40K+ bars |
+| Real portfolio | 83 instruments, 87 transactions, 53K+ bars |
 | Snapshot rebuild | ~4s for 83 instruments (benchmarked) |
 
 ---
 
-## Architecture Decisions (Session 17)
+## Architecture Decisions (Session 18)
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| AD-S17-1 | Transaction CRUD on Holding Detail page | Transactions page deleted in S16. Holding Detail already shows per-instrument transactions. Natural home for Add/Edit/Delete. |
-| AD-S17-2 | `getTopHoldings` advisor tool | 83 instruments in a single tool response consumes excessive context window. Targeted queries reduce token usage and improve response quality. |
-| AD-S17-3 | Portfolio summary in advisor snapshot response | Gives the advisor high-level portfolio facts without parsing all 83 rows. Reduces hallucination risk for aggregate questions. |
-| AD-S17-4 | Static NYSE holiday list (2025-2026) | Simplest correct implementation. ~10 holidays/year. Annual manual update is acceptable for a single-user local app. |
-| AD-S17-5 | Reuse existing transaction form components | TransactionForm, TransactionFormModal, DeleteConfirmation, SellValidationError all survived S16 deletion. Added `defaultInstrumentId` prop for holding-scoped usage. |
+| AD-S18-1 | Backfill lookback extended to 10 years (static default) | Tiingo provides 30+ years free data. 10yr covers any reasonable transaction history. Backfill runs at instrument creation before any transactions exist, so computed-from-transactions is not possible. |
+| AD-S18-2 | Holding detail refetch retries once on 500 | Transient SQLite contention can cause intermittent 500s. Single retry with 500ms delay resolves most cases without degrading UX. |
+| AD-S18-3 | Avg Cost displayed as `costBasis / totalQuantity` (Decimal division) | Standard brokerage column. Guards divide-by-zero for fully closed positions (returns null). |
+| AD-S18-4 | Re-backfill is a one-time script, not automatic migration | Existing instruments needed history gap filled. Future instruments get 10yr lookback automatically. Script is idempotent (UNIQUE constraint handles dedup). |
+| AD-S18-5 | useHoldings skips loading skeleton on refetch | Prevents PortfolioTable unmount that destroyed pagination/scroll state. Initial load still shows skeleton. |
 
 ---
 
@@ -133,9 +131,9 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-2 through KL-6).
 9. ~~Transaction UX gap closure~~ — Completed (Session 17)
 10. ~~Holiday market calendar~~ — Completed (Session 17)
 11. ~~Advisor 83-instrument tuning~~ — Completed (Session 17)
-12. **Advisor context window management** — Token counting, summary generation for long threads
-13. **Responsive refinements** — Tablet/mobile layout adjustments
-14. **UAT acceptance criteria sweep** — Verify all 11 criteria + 5 advisor intents
+12. ~~Visual UAT fixes~~ — Completed (Session 18)
+13. **Advisor context window management** — Token counting, summary generation for long threads
+14. **Responsive refinements** — Tablet/mobile layout adjustments
 
 ---
 
