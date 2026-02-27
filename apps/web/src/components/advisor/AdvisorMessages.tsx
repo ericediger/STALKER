@@ -8,9 +8,10 @@ import { ToolCallIndicator } from "./ToolCallIndicator";
 interface AdvisorMessagesProps {
   messages: AdvisorMessage[];
   isLoading: boolean;
+  hasSummary?: boolean;
 }
 
-export function AdvisorMessages({ messages, isLoading }: AdvisorMessagesProps) {
+export function AdvisorMessages({ messages, isLoading, hasSummary }: AdvisorMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -19,6 +20,26 @@ export function AdvisorMessages({ messages, isLoading }: AdvisorMessagesProps) {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      {hasSummary && (
+        <div className="mx-0 mt-1 mb-2 flex items-center gap-2 rounded-md bg-bg-tertiary px-3 py-2 text-xs text-text-tertiary">
+          <svg
+            className="h-3.5 w-3.5 shrink-0"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"
+            />
+          </svg>
+          <span>Older messages have been summarized to maintain conversation quality.</span>
+        </div>
+      )}
       {messages.map((msg) => {
         if (msg.role === "tool") {
           return (

@@ -133,6 +133,48 @@ describe('GET /api/advisor/threads/[id]', () => {
     expect(res.status).toBe(404);
   });
 
+  it('includes hasSummary=true when summaryText exists', async () => {
+    const now = new Date('2026-02-23T10:00:00Z');
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'thread-summary',
+      title: 'Has summary',
+      createdAt: now,
+      updatedAt: now,
+      summaryText: 'Earlier: discussed AAPL position.',
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Hello', toolCalls: null, toolResults: null, createdAt: now },
+      ],
+    });
+
+    const req = makeRequest('/api/advisor/threads/thread-summary');
+    const res = await GET_BY_ID(req, { params: Promise.resolve({ id: 'thread-summary' }) });
+    const body = (await res.json()) as { hasSummary: boolean };
+
+    expect(res.status).toBe(200);
+    expect(body.hasSummary).toBe(true);
+  });
+
+  it('includes hasSummary=false when summaryText is null', async () => {
+    const now = new Date('2026-02-23T10:00:00Z');
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'thread-no-summary',
+      title: 'No summary',
+      createdAt: now,
+      updatedAt: now,
+      summaryText: null,
+      messages: [
+        { id: 'msg-1', role: 'user', content: 'Hello', toolCalls: null, toolResults: null, createdAt: now },
+      ],
+    });
+
+    const req = makeRequest('/api/advisor/threads/thread-no-summary');
+    const res = await GET_BY_ID(req, { params: Promise.resolve({ id: 'thread-no-summary' }) });
+    const body = (await res.json()) as { hasSummary: boolean };
+
+    expect(res.status).toBe(200);
+    expect(body.hasSummary).toBe(false);
+  });
+
   it('parses toolCalls JSON in messages', async () => {
     const now = new Date();
     const toolCalls = [{ id: 'tc-1', name: 'getQuotes', arguments: { symbols: ['AAPL'] } }];

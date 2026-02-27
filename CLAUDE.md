@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-26 (Post-Session 18 — Visual UAT Fixes)
+**Last Updated:** 2026-02-27 (Post-Session 19 — Advisor Context Window Management)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -740,6 +740,59 @@ New re-backfill script: `scripts/re-backfill-history.ts` — extends price bar h
 | File | Tests | Scope |
 |------|-------|-------|
 | `apps/web/src/lib/__tests__/holdings-utils.test.ts` | +6 | avgCostPerShare (4), avgCost sort (2) |
+
+---
+
+## Session 19 — Advisor Context Window Management
+
+### Context Window Modules (`packages/advisor/src/`)
+
+| File | Purpose |
+|------|---------|
+| `token-estimator.ts` | Conservative token estimation: 3.5 chars/token for text, 3.0 for structured JSON. Functions: `estimateTokens`, `estimateMessageTokens`, `estimateConversationTokens`. |
+| `context-budget.ts` | Budget constants: 200K model window, 174.7K available for messages after reserves. `CONTEXT_BUDGET.MESSAGE_BUDGET` getter. |
+| `context-window.ts` | `windowMessages()` — trims oldest turns when over budget. `groupIntoTurns()` — groups user+assistant+tool messages. Never orphans tool calls. |
+| `summary-generator.ts` | `generateSummary()` — LLM-generated rolling summaries. `formatSummaryPreamble()` — wraps summary with context markers. |
+
+### Chat Route Changes
+
+The `POST /api/advisor/chat` route now:
+1. Loads **all** messages (no longer limited to 50)
+2. Windows messages via `windowMessages()` to fit within context budget
+3. Prepends summary preamble if `summaryText` exists on the thread
+4. Sends windowed messages to tool loop
+5. Fire-and-forget summary generation when messages are trimmed and no summary exists
+
+### Thread Detail Response
+
+`GET /api/advisor/threads/[id]` now includes `hasSummary: boolean` (derived from `summaryText !== null`). Raw `summaryText` is not exposed to the frontend (AD-S19-6).
+
+### Frontend
+
+`AdvisorMessages` component accepts optional `hasSummary` prop. Renders info banner when true:
+> "Older messages have been summarized to maintain conversation quality."
+
+### Architecture Decisions
+
+| # | Decision | Rationale |
+|---|----------|-----------|
+| AD-S19-1 | Token estimation via character-ratio heuristic | Conservative overestimation is the safe failure mode. No external dependency. |
+| AD-S19-2 | Turn-boundary trimming only | Prevents orphaned tool results or context-free assistant responses. |
+| AD-S19-3 | Summary generation triggered by windowing signal | Decouples "when" from "how". |
+| AD-S19-4 | Summary uses same adapter, minimal prompt, no tools | Keeps cost low (~1,800 tokens per summary). |
+| AD-S19-5 | Summary is fire-and-forget | User gets answer immediately. Failure degrades gracefully. |
+| AD-S19-6 | `summaryText` not exposed to frontend | Internal to LLM context. Users see indicator only. |
+
+### New Tests (35 new, 718 total)
+
+| File | Tests | Scope |
+|------|-------|-------|
+| `packages/advisor/__tests__/token-estimator.test.ts` | 10 | Token estimation, conversation tokens, budget constants |
+| `packages/advisor/__tests__/context-window.test.ts` | 11 | Turn grouping, windowing, trimming, MIN_RECENT_MESSAGES, shouldGenerateSummary |
+| `packages/advisor/__tests__/summary-generator.test.ts` | 6 | Summary generation, rolling merge, fallback, tool filtering, preamble |
+| `packages/advisor/__tests__/exports.test.ts` | +2 | Context window exports, CONTEXT_BUDGET getter |
+| `apps/web/__tests__/api/advisor/chat.test.ts` | +4 | Short thread no-op, summary preamble, summary trigger, failure resilience |
+| `apps/web/__tests__/api/advisor/threads.test.ts` | +2 | hasSummary true/false |
 
 ---
 

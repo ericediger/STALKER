@@ -29,3 +29,10 @@ export { executeToolLoop } from './tool-loop.js';
 
 // System Prompt
 export { SYSTEM_PROMPT } from './system-prompt.js';
+
+// Context Window Management
+export { estimateTokens, estimateMessageTokens, estimateConversationTokens } from './token-estimator.js';
+export { CONTEXT_BUDGET } from './context-budget.js';
+export { windowMessages, groupIntoTurns } from './context-window.js';
+export type { WindowableMessage, WindowResult } from './context-window.js';
+export { generateSummary, formatSummaryPreamble } from './summary-generator.js';

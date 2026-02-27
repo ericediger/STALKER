@@ -26,6 +26,7 @@ export function AdvisorPanel({ open, onClose }: AdvisorPanelProps) {
     isLoading,
     error,
     isSetupRequired,
+    hasSummary,
     sendMessage,
     loadThreads,
     loadThread,
@@ -140,7 +141,7 @@ ANTHROPIC_API_KEY=your_key_here`}
 
         {/* Messages */}
         {!isSetupRequired && hasMessages && (
-          <AdvisorMessages messages={messages} isLoading={isLoading} />
+          <AdvisorMessages messages={messages} isLoading={isLoading} hasSummary={hasSummary} />
         )}
 
         {/* Error display */}

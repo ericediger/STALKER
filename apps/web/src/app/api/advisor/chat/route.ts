@@ -13,8 +13,11 @@ import {
   createGetTransactionsExecutor,
   createGetQuotesExecutor,
   createGetTopHoldingsExecutor,
+  windowMessages,
+  generateSummary,
+  formatSummaryPreamble,
 } from '@stalker/advisor';
-import type { Message, LLMAdapter } from '@stalker/advisor';
+import type { Message, LLMAdapter, WindowableMessage } from '@stalker/advisor';
 import { PrismaSnapshotStore } from '@/lib/prisma-snapshot-store';
 import { processTransactions } from '@stalker/analytics';
 
@@ -426,7 +429,7 @@ function formatNum(value: { toFixed(dp: number): string }): string {
 }
 
 /**
- * Convert a Prisma AdvisorMessage to the internal Message format.
+ * Convert a Prisma AdvisorMessage (JSON strings) to the internal Message format.
  */
 function prismaMessageToInternal(msg: {
   role: string;
@@ -454,6 +457,27 @@ function prismaMessageToInternal(msg: {
     } catch {
       // Ignore malformed JSON
     }
+  }
+
+  return message;
+}
+
+/**
+ * Convert a WindowableMessage (pre-parsed objects) to the internal Message format.
+ */
+function windowableToMessage(msg: WindowableMessage): Message {
+  const message: Message = {
+    role: msg.role as 'user' | 'assistant' | 'tool',
+    content: msg.content ?? '',
+  };
+
+  if (msg.toolCalls) {
+    message.toolCalls = msg.toolCalls as Message['toolCalls'];
+  }
+
+  if (msg.role === 'tool' && msg.toolResults) {
+    const results = msg.toolResults as { toolCallId?: string };
+    message.toolCallId = results.toolCallId;
   }
 
   return message;
@@ -505,14 +529,44 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     });
 
-    // Load conversation history (last 50 messages)
+    // Load all conversation history for windowing
     const historyMessages = await prisma.advisorMessage.findMany({
       where: { threadId },
       orderBy: { createdAt: 'asc' },
-      take: 50,
     });
 
-    const conversationHistory: Message[] = historyMessages.map(prismaMessageToInternal);
+    // Load thread for summary text
+    const thread = await prisma.advisorThread.findUnique({ where: { id: threadId } });
+
+    // Window messages to fit within context budget
+    const windowableMessages: WindowableMessage[] = historyMessages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      toolCalls: m.toolCalls ? JSON.parse(m.toolCalls) : undefined,
+      toolResults: m.toolResults ? JSON.parse(m.toolResults) : undefined,
+      createdAt: m.createdAt,
+    }));
+
+    const windowResult = windowMessages(windowableMessages, thread?.summaryText ?? null);
+
+    // Build LLM message array
+    const llmMessages: Message[] = [];
+
+    // Prepend summary preamble if exists
+    if (thread?.summaryText) {
+      llmMessages.push({
+        role: 'user',
+        content: formatSummaryPreamble(thread.summaryText),
+      });
+      llmMessages.push({
+        role: 'assistant',
+        content: 'Understood. I have context from our earlier discussion. How can I help?',
+      });
+    }
+
+    // Add windowed messages (converted to LLM Message format)
+    llmMessages.push(...windowResult.messages.map(windowableToMessage));
 
     // Build adapter and run tool loop
     let adapter: LLMAdapter;
@@ -532,7 +586,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       result = await executeToolLoop({
         adapter,
         systemPrompt: SYSTEM_PROMPT,
-        messages: conversationHistory,
+        messages: llmMessages,
         tools: allToolDefinitions,
         toolExecutors,
       });
@@ -604,6 +658,21 @@ export async function POST(request: NextRequest): Promise<Response> {
       where: { id: threadId },
       data: { updatedAt: new Date() },
     });
+
+    // Fire-and-forget summary generation if windowing trimmed messages
+    if (windowResult.shouldGenerateSummary && windowResult.trimmed.length > 0) {
+      const trimmedAsMessages: Message[] = windowResult.trimmed.map(windowableToMessage);
+      generateSummary(adapter, trimmedAsMessages, thread?.summaryText ?? null)
+        .then(async (summary) => {
+          await prisma.advisorThread.update({
+            where: { id: threadId },
+            data: { summaryText: summary },
+          });
+        })
+        .catch((err: unknown) => {
+          console.error(`[advisor] Summary generation failed for thread ${threadId}:`, err);
+        });
+    }
 
     // W-10: Response must be fully JSON-serializable — all strings, no Decimal/Date objects
     return Response.json({

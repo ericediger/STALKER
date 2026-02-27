@@ -1,6 +1,6 @@
 # KNOWN-LIMITATIONS.md — STALKER Known Gaps
 
-**Last Updated:** 2026-02-26 (Session 18)
+**Last Updated:** 2026-02-27 (Session 19)
 
 This document catalogues known limitations in STALKER. Each entry includes the impact assessment and any existing mitigations.
 
@@ -30,12 +30,17 @@ This document catalogues known limitations in STALKER. Each entry includes the i
 |----|-----------|------------|
 | KL-1 | No holiday/half-day market calendar | NYSE observed holidays for 2025-2026 added. `isTradingDay()` skips holidays for US exchanges. Half-days not tracked (negligible waste). Update annually. |
 
+## Resolved in Session 19
+
+| ID | Limitation | Resolution |
+|----|-----------|------------|
+| KL-2 | Advisor context window not managed | Message windowing with token estimation. Trims oldest turns when approaching budget. Turn-boundary trimming prevents orphaned tool calls. |
+| KL-3 | No summary generation for long threads | LLM-generated summaries stored in `AdvisorThread.summaryText`. Rolling updates on subsequent trims. Fire-and-forget after response is returned. |
+
 ## Current Limitations
 
 | ID | Limitation | Impact | Mitigation |
 |----|-----------|--------|------------|
-| KL-2 | Advisor context window not managed | Long threads may exceed token limit | Transparent error from LLM; user can start new thread |
-| KL-3 | No summary generation for long threads | `summaryText` column exists but is never populated | Manual thread clearing is the workaround |
 | KL-4 | Bulk paste date conversion uses noon UTC | Timezone-specific trading session times not captured | Matches existing single-transaction pattern; acceptable for daily-resolution data |
 | KL-5 | Single provider dependency for historical bars | Tiingo is the sole history provider; no fallback if Tiingo is down | FMP free tier has no history support; AV free tier too limited. If Tiingo is unreachable, `getHistory()` returns empty array. Existing price bars in the database are unaffected. |
 | KL-6 | Rate limiter is in-process only | Scheduler and Next.js maintain separate rate limiter states | Single user, manual refresh is rare, providers have tolerance. Post-MVP: track call counts in SQLite `ProviderCallLog` table. |

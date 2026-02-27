@@ -6,6 +6,14 @@ import {
   getTransactionsDefinition,
   getQuotesDefinition,
   SYSTEM_PROMPT,
+  estimateTokens,
+  estimateMessageTokens,
+  estimateConversationTokens,
+  CONTEXT_BUDGET,
+  windowMessages,
+  groupIntoTurns,
+  generateSummary,
+  formatSummaryPreamble,
 } from '../src/index.js';
 
 describe('advisor package exports', () => {
@@ -68,5 +76,21 @@ describe('advisor package exports', () => {
     expect(SYSTEM_PROMPT).toContain('concentrated');
     // Staleness/data quality
     expect(SYSTEM_PROMPT).toContain('stale');
+  });
+
+  it('exports context window management functions', () => {
+    expect(typeof estimateTokens).toBe('function');
+    expect(typeof estimateMessageTokens).toBe('function');
+    expect(typeof estimateConversationTokens).toBe('function');
+    expect(typeof windowMessages).toBe('function');
+    expect(typeof groupIntoTurns).toBe('function');
+    expect(typeof generateSummary).toBe('function');
+    expect(typeof formatSummaryPreamble).toBe('function');
+  });
+
+  it('exports CONTEXT_BUDGET with MESSAGE_BUDGET getter', () => {
+    expect(typeof CONTEXT_BUDGET).toBe('object');
+    expect(CONTEXT_BUDGET.MODEL_CONTEXT_WINDOW).toBe(200_000);
+    expect(CONTEXT_BUDGET.MESSAGE_BUDGET).toBeGreaterThan(100_000);
   });
 });

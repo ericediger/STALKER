@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { mockPrismaClient, mockExecuteToolLoop } = vi.hoisted(() => {
+const { mockPrismaClient, mockExecuteToolLoop, mockWindowMessages, mockGenerateSummary } = vi.hoisted(() => {
   const mockPrismaClient = {
     advisorThread: {
       create: vi.fn(),
@@ -13,7 +13,9 @@ const { mockPrismaClient, mockExecuteToolLoop } = vi.hoisted(() => {
     },
   };
   const mockExecuteToolLoop = vi.fn();
-  return { mockPrismaClient, mockExecuteToolLoop };
+  const mockWindowMessages = vi.fn();
+  const mockGenerateSummary = vi.fn();
+  return { mockPrismaClient, mockExecuteToolLoop, mockWindowMessages, mockGenerateSummary };
 });
 
 vi.mock('@/lib/prisma', () => ({
@@ -30,6 +32,9 @@ vi.mock('@stalker/advisor', () => ({
   createGetTransactionsExecutor: vi.fn(() => vi.fn()),
   createGetQuotesExecutor: vi.fn(() => vi.fn()),
   createGetTopHoldingsExecutor: vi.fn(() => vi.fn()),
+  windowMessages: mockWindowMessages,
+  generateSummary: mockGenerateSummary,
+  formatSummaryPreamble: vi.fn((text: string) => `[Summary] ${text} [/Summary]`),
 }));
 
 // Mock analytics and market-data deps used by buildToolExecutors
@@ -59,12 +64,25 @@ function makeJsonRequest(body: unknown): Request {
   });
 }
 
+/** Default windowMessages mock: fast path (no trimming) */
+function setupDefaultWindowMock() {
+  mockWindowMessages.mockImplementation(
+    (msgs: Array<{ id: string; role: string; content: string }>) => ({
+      messages: msgs,
+      trimmed: [],
+      shouldGenerateSummary: false,
+      estimatedTokens: 100,
+    }),
+  );
+}
+
 describe('POST /api/advisor/chat', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     process.env = { ...originalEnv, ANTHROPIC_API_KEY: 'test-key' };
     vi.clearAllMocks();
+    setupDefaultWindowMock();
   });
 
   afterEach(() => {
@@ -106,8 +124,14 @@ describe('POST /api/advisor/chat', () => {
     });
     mockPrismaClient.advisorMessage.create.mockResolvedValue({});
     mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
-      { role: 'user', content: 'Hello advisor', toolCalls: null, toolResults: null, createdAt: now },
+      { id: 'msg-1', role: 'user', content: 'Hello advisor', toolCalls: null, toolResults: null, createdAt: now },
     ]);
+    // findUnique called to load thread for summaryText
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'new-thread-id',
+      title: 'Hello advisor',
+      summaryText: null,
+    });
     mockPrismaClient.advisorThread.update.mockResolvedValue({});
 
     mockExecuteToolLoop.mockResolvedValue({
@@ -138,10 +162,11 @@ describe('POST /api/advisor/chat', () => {
     mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
       id: 'existing-thread',
       title: 'My thread',
+      summaryText: null,
     });
     mockPrismaClient.advisorMessage.create.mockResolvedValue({});
     mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
-      { role: 'user', content: 'Follow-up question', toolCalls: null, toolResults: null, createdAt: now },
+      { id: 'msg-1', role: 'user', content: 'Follow-up question', toolCalls: null, toolResults: null, createdAt: now },
     ]);
     mockPrismaClient.advisorThread.update.mockResolvedValue({});
 
@@ -169,8 +194,13 @@ describe('POST /api/advisor/chat', () => {
     });
     mockPrismaClient.advisorMessage.create.mockResolvedValue({});
     mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
-      { role: 'user', content: 'Error test', toolCalls: null, toolResults: null, createdAt: now },
+      { id: 'msg-1', role: 'user', content: 'Error test', toolCalls: null, toolResults: null, createdAt: now },
     ]);
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'thread-err',
+      title: 'Error test',
+      summaryText: null,
+    });
 
     mockExecuteToolLoop.mockRejectedValue(new Error('API rate limit'));
 
@@ -192,8 +222,13 @@ describe('POST /api/advisor/chat', () => {
     });
     mockPrismaClient.advisorMessage.create.mockResolvedValue({});
     mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
-      { role: 'user', content: 'Persist test', toolCalls: null, toolResults: null, createdAt: now },
+      { id: 'msg-1', role: 'user', content: 'Persist test', toolCalls: null, toolResults: null, createdAt: now },
     ]);
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'persist-thread',
+      title: 'Persist test',
+      summaryText: null,
+    });
     mockPrismaClient.advisorThread.update.mockResolvedValue({});
 
     const generatedMessages = [
@@ -221,5 +256,173 @@ describe('POST /api/advisor/chat', () => {
 
     // Should have persisted: 1 user message + 3 generated = 4 total creates
     expect(mockPrismaClient.advisorMessage.create).toHaveBeenCalledTimes(4);
+  });
+
+  // --- Session 19: Context Window Integration Tests ---
+
+  it('short threads send all messages (no windowing)', async () => {
+    const now = new Date();
+    mockPrismaClient.advisorThread.create.mockResolvedValue({
+      id: 'short-thread',
+      title: 'Short thread',
+      createdAt: now,
+      updatedAt: now,
+    });
+    mockPrismaClient.advisorMessage.create.mockResolvedValue({});
+    mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
+      { id: 'msg-1', role: 'user', content: 'Hello', toolCalls: null, toolResults: null, createdAt: now },
+    ]);
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'short-thread',
+      title: 'Short thread',
+      summaryText: null,
+    });
+    mockPrismaClient.advisorThread.update.mockResolvedValue({});
+
+    mockExecuteToolLoop.mockResolvedValue({
+      messages: [{ role: 'assistant', content: 'Hi!' }],
+      finalResponse: 'Hi!',
+    });
+
+    const req = makeJsonRequest({ message: 'Hello' });
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(200);
+
+    // windowMessages should have been called
+    expect(mockWindowMessages).toHaveBeenCalledTimes(1);
+
+    // Fast path: no summary generation triggered
+    expect(mockGenerateSummary).not.toHaveBeenCalled();
+  });
+
+  it('prepends summary preamble when summaryText exists', async () => {
+    const now = new Date();
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'summary-thread',
+      title: 'Has summary',
+      summaryText: 'Earlier: discussed AAPL holdings and tax implications.',
+    });
+    mockPrismaClient.advisorMessage.create.mockResolvedValue({});
+    mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
+      { id: 'msg-1', role: 'user', content: 'What about MSFT?', toolCalls: null, toolResults: null, createdAt: now },
+    ]);
+    mockPrismaClient.advisorThread.update.mockResolvedValue({});
+
+    mockExecuteToolLoop.mockResolvedValue({
+      messages: [{ role: 'assistant', content: 'Let me check MSFT.' }],
+      finalResponse: 'Let me check MSFT.',
+    });
+
+    const req = makeJsonRequest({ threadId: 'summary-thread', message: 'What about MSFT?' });
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(200);
+
+    // Verify the tool loop received the summary preamble as the first messages
+    const toolLoopCall = mockExecuteToolLoop.mock.calls[0]![0] as { messages: Array<{ role: string; content: string }> };
+    // First two messages should be the summary preamble pair
+    expect(toolLoopCall.messages[0]!.role).toBe('user');
+    expect(toolLoopCall.messages[0]!.content).toContain('[Summary]');
+    expect(toolLoopCall.messages[1]!.role).toBe('assistant');
+    expect(toolLoopCall.messages[1]!.content).toContain('earlier discussion');
+  });
+
+  it('triggers summary generation when shouldGenerateSummary is true', async () => {
+    const now = new Date();
+    const trimmedMsg = { id: 'old-1', role: 'user', content: 'Old message', createdAt: now };
+
+    mockWindowMessages.mockReturnValue({
+      messages: [{ id: 'recent-1', role: 'user', content: 'Recent', createdAt: now }],
+      trimmed: [trimmedMsg],
+      shouldGenerateSummary: true,
+      estimatedTokens: 100,
+    });
+
+    mockPrismaClient.advisorThread.create.mockResolvedValue({
+      id: 'gen-thread',
+      title: 'Generate summary',
+      createdAt: now,
+      updatedAt: now,
+    });
+    mockPrismaClient.advisorMessage.create.mockResolvedValue({});
+    mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
+      { id: 'recent-1', role: 'user', content: 'Recent', toolCalls: null, toolResults: null, createdAt: now },
+    ]);
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'gen-thread',
+      title: 'Generate summary',
+      summaryText: null,
+    });
+    mockPrismaClient.advisorThread.update.mockResolvedValue({});
+
+    mockGenerateSummary.mockResolvedValue('Generated summary text');
+
+    mockExecuteToolLoop.mockResolvedValue({
+      messages: [{ role: 'assistant', content: 'Response.' }],
+      finalResponse: 'Response.',
+    });
+
+    const req = makeJsonRequest({ message: 'Recent' });
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(200);
+
+    // Wait a tick for fire-and-forget promise to settle
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // Summary should have been generated
+    expect(mockGenerateSummary).toHaveBeenCalledTimes(1);
+
+    // Summary should have been stored in the thread
+    const updateCalls = mockPrismaClient.advisorThread.update.mock.calls;
+    const summaryUpdateCall = updateCalls.find(
+      (call: Array<{ data?: { summaryText?: string } }>) => call[0]?.data?.summaryText === 'Generated summary text',
+    );
+    expect(summaryUpdateCall).toBeDefined();
+  });
+
+  it('summary generation failure does not break chat response', async () => {
+    const now = new Date();
+
+    mockWindowMessages.mockReturnValue({
+      messages: [{ id: 'recent-1', role: 'user', content: 'Recent', createdAt: now }],
+      trimmed: [{ id: 'old-1', role: 'user', content: 'Old', createdAt: now }],
+      shouldGenerateSummary: true,
+      estimatedTokens: 100,
+    });
+
+    mockPrismaClient.advisorThread.create.mockResolvedValue({
+      id: 'fail-thread',
+      title: 'Summary fail',
+      createdAt: now,
+      updatedAt: now,
+    });
+    mockPrismaClient.advisorMessage.create.mockResolvedValue({});
+    mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
+      { id: 'recent-1', role: 'user', content: 'Recent', toolCalls: null, toolResults: null, createdAt: now },
+    ]);
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'fail-thread',
+      title: 'Summary fail',
+      summaryText: null,
+    });
+    mockPrismaClient.advisorThread.update.mockResolvedValue({});
+
+    // Summary generation fails
+    mockGenerateSummary.mockRejectedValue(new Error('LLM timeout'));
+
+    mockExecuteToolLoop.mockResolvedValue({
+      messages: [{ role: 'assistant', content: 'Response.' }],
+      finalResponse: 'Response.',
+    });
+
+    const req = makeJsonRequest({ message: 'Recent' });
+    const res = await POST(req as never);
+
+    // Response should still succeed despite summary failure
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { messages: Array<{ content: string }> };
+    expect(body.messages[0]!.content).toBe('Response.');
   });
 });

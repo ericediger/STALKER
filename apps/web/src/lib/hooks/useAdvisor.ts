@@ -26,6 +26,7 @@ interface AdvisorState {
   isLoading: boolean;
   error: string | null;
   isSetupRequired: boolean;
+  hasSummary: boolean;
 }
 
 export function useAdvisor() {
@@ -36,6 +37,7 @@ export function useAdvisor() {
     isLoading: false,
     error: null,
     isSetupRequired: false,
+    hasSummary: false,
   });
 
   const sendMessage = useCallback(async (text: string): Promise<void> => {
@@ -125,11 +127,13 @@ export function useAdvisor() {
       const data = (await res.json()) as {
         id: string;
         messages: AdvisorMessage[];
+        hasSummary?: boolean;
       };
       setState((prev) => ({
         ...prev,
         activeThreadId: data.id,
         messages: data.messages,
+        hasSummary: data.hasSummary ?? false,
         error: null,
       }));
     } catch {
@@ -144,6 +148,7 @@ export function useAdvisor() {
       messages: [],
       error: null,
       isSetupRequired: false,
+      hasSummary: false,
     }));
   }, []);
 

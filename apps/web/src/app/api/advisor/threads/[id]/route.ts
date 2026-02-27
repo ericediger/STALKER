@@ -31,6 +31,7 @@ export async function GET(
       title: thread.title,
       createdAt: thread.createdAt.toISOString(),
       updatedAt: thread.updatedAt.toISOString(),
+      hasSummary: thread.summaryText !== null,
       messages: thread.messages.map((m) => ({
         id: m.id,
         role: m.role,
