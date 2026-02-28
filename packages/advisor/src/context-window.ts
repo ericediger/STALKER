@@ -39,7 +39,7 @@ export interface WindowResult {
  * 4. Never trim below MIN_RECENT_MESSAGES worth of turns
  * 5. Always trim at conversation boundaries (user message starts a turn)
  *
- * AD-S19-3: shouldGenerateSummary is set when messages are trimmed and no summary exists.
+ * AD-S19-3 / AD-S20-1: shouldGenerateSummary fires on every trim (rolling summaries).
  */
 export function windowMessages(
   allMessages: WindowableMessage[],
@@ -99,7 +99,7 @@ export function windowMessages(
   return {
     messages: keptMessages,
     trimmed: trimmedMessages,
-    shouldGenerateSummary: trimmedMessages.length > 0 && !summaryText,
+    shouldGenerateSummary: trimmedMessages.length > 0,
     estimatedTokens: tokenCount,
   };
 }

@@ -14,7 +14,7 @@ export async function executeToolLoop(params: {
   tools: ToolDefinition[];
   toolExecutors: Record<string, (args: Record<string, unknown>) => Promise<unknown>>;
   maxIterations?: number;
-}): Promise<{ messages: Message[]; finalResponse: string }> {
+}): Promise<{ messages: Message[]; finalResponse: string; usage?: { inputTokens: number; outputTokens: number } }> {
   const {
     adapter,
     systemPrompt,
@@ -84,6 +84,7 @@ export async function executeToolLoop(params: {
     return {
       messages: generatedMessages,
       finalResponse: response.content ?? '',
+      usage: response.usage,
     };
   }
 

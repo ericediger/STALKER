@@ -1,7 +1,7 @@
 # CLAUDE.md — STALKER Architecture & Agent Rules
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-27 (Post-Session 19 — Advisor Context Window Management)
+**Last Updated:** 2026-02-28 (Post-Session 20 — Hardening & Project Close-Out)
 **Local repo path:** ~/Desktop/_LOCAL APP DEVELOPMENT/STOCKER
 **GitHub:** https://github.com/ericediger/STALKER
 
@@ -61,7 +61,7 @@ UI (Next.js/React) → API Layer (App Router) → Analytics Engine + Market Data
 │   ├── shared/                  # Types, Decimal utils, ULID, constants
 │   ├── analytics/               # FIFO lots, PnL, portfolio value series
 │   ├── market-data/             # Provider interface, implementations, calendar
-│   ├── advisor/                 # LLM adapter, tool definitions
+│   ├── advisor/                 # LLM adapter, tool definitions, context window
 │   └── scheduler/               # Polling orchestration
 ├── data/test/                   # Reference portfolio fixtures
 ├── Session Reports/             # Date-prefixed session reports
@@ -216,75 +216,43 @@ const instrument: Instrument = {
 };
 ```
 
-### Rebuild Trigger for Transaction CRUD
-
-After any transaction insert/edit/delete, API routes should call:
-```typescript
-import { rebuildSnapshotsFrom } from '@stalker/analytics';
-import { PrismaPriceLookup } from '@/lib/prisma-price-lookup';
-import { PrismaSnapshotStore } from '@/lib/prisma-snapshot-store';
-import { getNextTradingDay, isTradingDay } from '@stalker/market-data';
-
-await rebuildSnapshotsFrom({
-  affectedDate,
-  transactions,
-  instruments,
-  priceLookup: new PrismaPriceLookup(prisma),
-  snapshotStore: new PrismaSnapshotStore(prisma),
-  calendar: { getNextTradingDay, isTradingDay },
-});
-```
-
-**Note (Session 4):** Snapshot rebuild is currently stubbed in transaction CRUD endpoints. The implementations exist but the wiring is deferred — ready to activate when needed. Transaction endpoints still validate sell invariants correctly.
-
 ### Reference Portfolio Fixtures
 
 Location: `data/test/`
 - `reference-portfolio.json` — 6 instruments, 25 transactions, ~56 trading days of mock prices
 - `expected-outputs.json` — Hand-computed expected values at 6 checkpoint dates
-- `computation-notes.md` — Documents all manual calculations
 - Tests: `packages/analytics/__tests__/reference-portfolio.test.ts` (24 tests)
-
-Purpose: Regression guard for the analytics engine. Covers FIFO multi-lot sells, full position close, re-entry, backdated transactions, and carry-forward pricing.
 
 ---
 
-## API Endpoint Patterns (Session 4)
+## API Endpoint Map
 
-### Endpoint Map
-
-| Method | Route | Purpose | Status |
-|--------|-------|---------|--------|
-| POST | `/api/instruments` | Create instrument | Implemented |
-| GET | `/api/instruments` | List all instruments | Implemented |
-| GET | `/api/instruments/[id]` | Get instrument by ID | Implemented |
-| DELETE | `/api/instruments/[id]` | Cascade delete instrument | Implemented |
-| POST | `/api/transactions` | Create transaction (sell validated) | Implemented |
-| GET | `/api/transactions` | List transactions (filterable) | Implemented |
-| GET | `/api/transactions/[id]` | Get transaction by ID | Implemented |
-| PUT | `/api/transactions/[id]` | Update transaction (re-validated) | Implemented |
-| DELETE | `/api/transactions/[id]` | Delete transaction (re-validated) | Implemented |
-| GET | `/api/portfolio/snapshot` | Portfolio state with window | Implemented |
-| GET | `/api/portfolio/timeseries` | Value series for charting | Implemented |
-| GET | `/api/portfolio/holdings` | All holdings + allocation % | Implemented |
-| GET | `/api/portfolio/holdings/[symbol]` | Position detail with lots | Implemented |
-| GET | `/api/market/quote` | Latest cached quote | Implemented |
-| GET | `/api/market/history` | Price bar history | Implemented |
-| GET | `/api/market/search` | Symbol search | Implemented (live FMP) |
-| POST | `/api/market/refresh` | Manual quote refresh | Implemented (live multi-provider) |
-| GET | `/api/market/status` | Data health summary | Implemented |
-
-### Shared Utilities
-
-| File | Purpose |
-|------|---------|
-| `apps/web/src/lib/prisma.ts` | Singleton PrismaClient |
-| `apps/web/src/lib/errors.ts` | `apiError()` factory for consistent error responses |
-| `apps/web/src/lib/validators/instrumentInput.ts` | Zod v4 schema for instrument creation |
-| `apps/web/src/lib/validators/transactionInput.ts` | Zod v4 schema for transaction creation/update |
-| `apps/web/src/lib/prisma-price-lookup.ts` | PriceLookup implementation (carry-forward queries) |
-| `apps/web/src/lib/prisma-snapshot-store.ts` | SnapshotStore implementation (Decimal serialization) |
-| `apps/web/src/lib/market-data-client.ts` | Market calendar wrapper |
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | `/api/instruments` | Create instrument (triggers historical backfill) |
+| GET | `/api/instruments` | List all instruments |
+| GET | `/api/instruments/[id]` | Get instrument by ID |
+| DELETE | `/api/instruments/[id]` | Cascade delete instrument |
+| POST | `/api/transactions` | Create transaction (sell validated) |
+| GET | `/api/transactions` | List transactions (filterable) |
+| GET | `/api/transactions/[id]` | Get transaction by ID |
+| PUT | `/api/transactions/[id]` | Update transaction (re-validated) |
+| DELETE | `/api/transactions/[id]` | Delete transaction (re-validated) |
+| POST | `/api/transactions/bulk` | Bulk insert from paste input |
+| GET | `/api/portfolio/snapshot` | Portfolio state with window (read-only) |
+| POST | `/api/portfolio/rebuild` | Trigger snapshot rebuild |
+| GET | `/api/portfolio/timeseries` | Value series for charting |
+| GET | `/api/portfolio/holdings` | All holdings + allocation % |
+| GET | `/api/portfolio/holdings/[symbol]` | Position detail with lots |
+| GET | `/api/market/quote` | Latest cached quote |
+| GET | `/api/market/history` | Price bar history |
+| GET | `/api/market/search` | Symbol search (live FMP) |
+| POST | `/api/market/refresh` | Manual quote refresh (live multi-provider) |
+| GET | `/api/market/status` | Data health summary |
+| POST | `/api/advisor/chat` | Send message, tool loop, return responses |
+| GET | `/api/advisor/threads` | List threads with message count |
+| GET | `/api/advisor/threads/[id]` | Thread detail with messages + `hasSummary` |
+| DELETE | `/api/advisor/threads/[id]` | Delete thread + messages |
 
 ### Error Response Shape
 
@@ -294,207 +262,71 @@ All error responses follow:
 ```
 Codes: `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `CONFLICT` (409), `SELL_VALIDATION_FAILED` (422), `INTERNAL_ERROR` (500).
 
-### Session 5 Integration Notes
-
-- All API endpoints are functional. UI pages can `fetch()` them directly.
-- Portfolio snapshot endpoint supports `window` param (1D/1W/1M/3M/1Y/ALL) for dashboard.
-- Holdings endpoint returns allocation % — ready for pie chart.
-- Timeseries endpoint returns date-ordered series — ready for area chart.
-- Holdings/[symbol] returns per-lot detail — ready for position detail view.
-- Decimal values are strings in all responses — UI must parse at render time.
-- Instrument creation auto-maps exchange→exchangeTz and builds providerSymbolMap.
-- `providerSymbolMap` is returned as a parsed object (not JSON string) in instrument responses.
-
----
-
-## UI Component Catalog (Session 5)
-
-### Design System
+### Shared API Utilities
 
 | File | Purpose |
 |------|---------|
-| `apps/web/src/app/globals.css` | Tailwind v4 `@theme` config: colors, fonts, spacing. Dark financial theme. |
-| `apps/web/src/app/layout.tsx` | Root layout with Google Fonts (Crimson Pro, DM Sans, JetBrains Mono) |
-| `apps/web/src/lib/cn.ts` | `cn()` utility — `clsx` + `tailwind-merge` |
-| `apps/web/src/lib/format.ts` | Numeric formatting: currency, percent, quantity, compact, date, relative time |
-| `apps/web/postcss.config.mjs` | PostCSS config for Tailwind v4 |
-
-**Tailwind v4 Note:** No `tailwind.config.ts`. Theme is CSS-based via `@theme` directives in `globals.css`. Font variables use `--font-*-ref` pattern to avoid self-referential CSS variables (next/font sets `--font-heading-ref`, theme maps it to `--font-heading`).
-
-### Token Classes
-
-Colors: `bg-bg-primary`, `bg-bg-secondary`, `bg-bg-tertiary`, `text-text-primary`, `text-text-secondary`, `text-text-tertiary`, `border-border-primary`, `bg-accent-primary` (gold), `bg-accent-positive` (green), `bg-accent-negative` (red), `bg-accent-warning` (amber), `bg-accent-info` (blue).
-
-Typography: `font-heading` (Crimson Pro), `font-body` (DM Sans), `font-mono` (JetBrains Mono).
-
-Spacing: `p-card` (1rem), `p-section` (1.5rem), `px-page` (2rem).
-
-### Base UI Components (`apps/web/src/components/ui/`)
-
-| Component | Key Props | Notes |
-|-----------|-----------|-------|
-| `Button` | `variant`: primary/secondary/ghost/danger, `size`: sm/md/lg, `loading`, `disabled` | Focus ring, spinner |
-| `Input` | `label`, `error`, `hint` + standard HTML input props | Dark bg, error styling |
-| `Select` | `label`, `options`, `error`, `placeholder`, `disabled` | Native select, styled like Input |
-| `Card` | `title?`, `children`, `className` | `bg-bg-secondary` container |
-| `Badge` | `variant`: positive/negative/warning/info/neutral, `size`: sm/md | Pill-shaped |
-| `Table` | `columns`, `data`, `onSort`, `emptyMessage` | Numeric cols right-aligned in font-mono |
-| `Tooltip` | `content`, `side`, `children` | CSS-only hover tooltip |
-| `Toast` | `ToastProvider` + `useToast()` hook | Context-based, auto-dismiss, slide animation |
-| `Modal` | `open`, `onClose`, `title`, `children` | Backdrop, Escape key, focus trap |
-| `PillToggle` | `options`, `value`, `onChange` | Horizontal pill selector |
-| `Skeleton` | `width?`, `height?` | Pulse animation placeholder |
-| `ValueChange` | `value`, `format`: currency/percent | Green/red with arrows |
-
-### Layout Components (`apps/web/src/components/layout/`)
-
-| Component | Purpose |
-|-----------|---------|
-| `Shell` | Wraps NavTabs + content + DataHealthFooter + AdvisorFAB + AdvisorPanel. Manages advisor open/close state. |
-| `NavTabs` | 4 tabs: Dashboard, Holdings, Transactions, Charts. Active state via `usePathname()` |
-| `DataHealthFooter` | Fixed bottom bar wired to `GET /api/market/status` — instrument count, polling, budget, freshness |
-| `AdvisorFAB` | Fixed circular button bottom-right. Accepts `onClick` prop to open advisor panel. |
-
-### Empty States (`apps/web/src/components/empty-states/`)
-
-| Component | Content |
-|-----------|---------|
-| `DashboardEmpty` | "Add your first holding" + primary CTA |
-| `HoldingsEmpty` | Same as Dashboard |
-| `TransactionsEmpty` | Informational text only |
-| `AdvisorEmpty` | Conditional: `hasHoldings` → suggested prompts, else "add holdings first" |
-
-### Page Routes (`apps/web/src/app/(pages)/`)
-
-Route group `(pages)` uses Shell layout. Pages: `/` (Dashboard — data-wired), `/holdings` (Holdings — data-wired), `/transactions` (TransactionsEmpty), `/charts` (placeholder).
-
-### Formatting Utilities (`apps/web/src/lib/format.ts`)
-
-All functions accept **string** inputs (Decimal serialization from API). Use `Decimal.js` internally — never `parseFloat`.
-
-| Function | Signature | Example |
-|----------|-----------|---------|
-| `formatCurrency` | `(value: string, opts?: { showSign? }) => string` | `"12345.67"` → `"$12,345.67"` |
-| `formatPercent` | `(value: string, opts?: { showSign?, decimals? }) => string` | `"5.678"` → `"5.68%"` |
-| `formatQuantity` | `(value: string) => string` | `"1234"` → `"1,234"` |
-| `formatCompact` | `(value: string) => string` | `"1234567.89"` → `"$1.2M"` |
-| `formatDate` | `(isoString: string) => string` | `"2026-02-18T16:00:00Z"` → `"Feb 18, 2026"` |
-| `formatRelativeTime` | `(isoString: string) => string` | Recent → `"5 min ago"` |
-
-Invalid inputs return `"—"` (em dash). Zero never shows as negative.
+| `apps/web/src/lib/prisma.ts` | Singleton PrismaClient |
+| `apps/web/src/lib/errors.ts` | `apiError()` factory for consistent error responses |
+| `apps/web/src/lib/validators/instrumentInput.ts` | Zod v4 schema for instrument creation |
+| `apps/web/src/lib/validators/transactionInput.ts` | Zod v4 schema for transaction creation/update |
+| `apps/web/src/lib/prisma-price-lookup.ts` | PriceLookup implementation (carry-forward queries) |
+| `apps/web/src/lib/prisma-snapshot-store.ts` | SnapshotStore implementation (Decimal serialization) |
 
 ---
 
-## Session 6 — Dashboard + Holdings UI
+## UI Architecture (Sessions 5–7)
 
-### Dashboard Components (`apps/web/src/components/dashboard/`)
+### Design System
 
-| Component | Props | Notes |
-|-----------|-------|-------|
-| `HeroMetric` | `snapshot: PortfolioSnapshot \| null`, `isLoading` | Crimson Pro 4xl total value, ValueChange for day change |
-| `SummaryCards` | `snapshot`, `isLoading` | 3 cards: Total Gain/Loss (uses `add()` from shared), Unrealized PnL, Realized PnL |
-| `PortfolioChart` | `timeseries: TimeseriesPoint[]`, `isLoading` | TradingView Lightweight Charts v5 area chart |
-| `WindowSelector` | `value: WindowOption`, `onChange` | Wraps PillToggle with 1D/1W/1M/3M/1Y/ALL options |
+Tailwind v4 with CSS-based `@theme` directives in `globals.css` (no `tailwind.config.ts`). Font variables use `--font-*-ref` pattern. Fonts bundled locally via `next/font/local` (no Google Fonts CDN).
 
-### Holdings Components (`apps/web/src/components/holdings/`)
+Token classes: `bg-bg-primary/secondary/tertiary`, `text-text-primary/secondary/tertiary`, `border-border-primary`, `bg-accent-positive/negative/warning/info`. Typography: `font-heading` (Crimson Pro), `font-body` (DM Sans), `font-mono` (JetBrains Mono).
 
-| Component | Props | Notes |
-|-----------|-------|-------|
-| `HoldingsTable` | `holdings`, `compact?`, `onSort?`, `sortColumn?`, `sortDirection?`, `staleInstruments?`, `onRowClick?` | `compact` mode for dashboard (no sort/staleness). `onRowClick` navigates to holding detail. |
-| `TotalsRow` | `holdings: Holding[]` | Footer with total value + total unrealized PnL |
-| `StalenessIndicator` | `lastUpdated: string` | Amber Badge with Tooltip showing full date |
-| `StalenessBanner` | `staleInstruments: StaleInstrument[]` | Conditional amber warning banner |
+### Key UI Files
+
+| Area | Location | Key Components |
+|------|----------|---------------|
+| Base UI | `src/components/ui/` | Button, Input, Select, Card, Badge, Table, Tooltip, Toast, Modal, PillToggle, Skeleton, ValueChange |
+| Layout | `src/components/layout/` | Shell, NavTabs, DataHealthFooter, AdvisorFAB |
+| Dashboard | `src/components/dashboard/` | HeroMetric, SummaryCards, PortfolioChart, WindowSelector |
+| Holdings | `src/components/holdings/` | HoldingsTable, TotalsRow, StalenessIndicator, StalenessBanner |
+| Holding Detail | `src/components/holding-detail/` | PositionSummary, CandlestickChart, LotsTable, HoldingTransactions |
+| Transactions | `src/components/transactions/` | TransactionForm, TransactionFormModal, TransactionsTable, DeleteConfirmation, SellValidationError |
+| Instruments | `src/components/instruments/` | AddInstrumentModal, SymbolSearchInput |
+| Advisor | `src/components/advisor/` | AdvisorPanel, AdvisorHeader, AdvisorMessages, AdvisorInput, SuggestedPrompts, ToolCallIndicator, ThreadList |
+| Empty States | `src/components/empty-states/` | DashboardEmpty, HoldingsEmpty, TransactionsEmpty, AdvisorEmpty |
+
+All component paths relative to `apps/web/`.
 
 ### Data Fetching Hooks (`apps/web/src/lib/hooks/`)
 
 Pattern: `useState` + `useEffect` with cancellation flag. No SWR (AD-1).
 
-| Hook | Params | Returns |
-|------|--------|---------|
-| `usePortfolioSnapshot` | `window: WindowOption` | `{ data: PortfolioSnapshot \| null, isLoading, error }` |
-| `usePortfolioTimeseries` | `window: WindowOption` | `{ data: TimeseriesPoint[], isLoading, error }` |
-| `useHoldings` | none | `{ data: Holding[] \| null, isLoading, error }` |
-| `useMarketStatus` | none | `{ data: MarketStatus \| null, isLoading, error }` |
+| Hook | Key Details |
+|------|------------|
+| `usePortfolioSnapshot` | Accepts `window: WindowOption`. Detects `needsRebuild` and auto-triggers. |
+| `usePortfolioTimeseries` | Date-ordered series for area chart |
+| `useHoldings` | Skips loading skeleton on refetch (preserves pagination state) |
+| `useHoldingDetail` | Retries once on HTTP 500 (500ms delay) |
+| `useMarketHistory` | Price bars for candlestick chart |
+| `useTransactions` | Filterable by `instrumentId` |
+| `useInstruments` | All instruments for form selects |
+| `useMarketStatus` | Data health for footer |
+| `useAdvisor` | Thread management, message sending, `hasSummary` state |
+| `useChart` | TradingView chart lifecycle (create → resize → dispose) |
 
-### Utility Functions
+### Formatting (`apps/web/src/lib/format.ts`)
 
-| File | Functions | Notes |
-|------|-----------|-------|
-| `window-utils.ts` | `getWindowDateRange(window, today?)`, `WindowOption`, `WINDOW_OPTIONS`, `DEFAULT_WINDOW` | Maps PillToggle option to `{ startDate?, endDate }` |
-| `chart-utils.ts` | `toAreaChartData(timeseries)`, `TimeseriesPoint` | Converts API response to TradingView AreaData. **This is the ONE place `Number()` is used** — TradingView requires numeric values. |
-| `holdings-utils.ts` | `sortHoldings()`, `computeAllocation()`, `computeTotals()`, `isSymbolStale()` | All arithmetic via `Decimal.js`. Types: `Holding`, `SortColumn`, `SortDirection` |
+All functions accept **string** inputs (Decimal serialization). Use `Decimal.js` internally — never `parseFloat`. Functions: `formatCurrency`, `formatPercent`, `formatQuantity`, `formatCompact`, `formatDate`, `formatRelativeTime`. Invalid inputs return `"—"`.
 
-### TradingView Lightweight Charts v5 Integration
+### TradingView Lightweight Charts v5
 
-**API change in v5:** Use `chart.addSeries(AreaSeries, options)` — NOT `chart.addAreaSeries()` (removed in v5).
+**v5 API:** Use `chart.addSeries(AreaSeries, options)` — NOT `chart.addAreaSeries()` (removed in v5).
 
-**Shared chart hook (`apps/web/src/lib/hooks/useChart.ts`):**
-```typescript
-import { useChart } from "@/lib/hooks/useChart";
-const { chart } = useChart({ container: containerRef, options: { height: 300 } });
-// Then add series: chart.addSeries(AreaSeries, opts) or chart.addSeries(CandlestickSeries, opts)
-```
-Handles: createChart → ResizeObserver → dispose. Dark theme defaults built in.
+**Decimal exception (AD-4, AD-S6c):** TradingView requires `number` values. `chart-utils.ts` and `chart-candlestick-utils.ts` are the **only** approved `Number()` locations for financial values.
 
-Both `PortfolioChart` (area) and `CandlestickChart` (candlestick) use this hook.
-
-### Decimal Exception for Charts (AD-4 Note)
-
-TradingView Lightweight Charts requires `number` values for chart data points. `chart-utils.ts` and `chart-candlestick-utils.ts` are the **only** approved locations for `Number()` on financial values. All other UI code must use `formatCurrency()`, `formatPercent()`, etc.
-
-### Seed Data
-
-`apps/web/prisma/seed.ts` creates 28 instruments with ~300 trading days of price bars each (8300+ bars total), 30 transactions, and 28 latest quotes (3 intentionally stale for testing staleness indicators).
-
----
-
-## Session 7 — Holding Detail + Transactions + Charts
-
-### Holding Detail Components (`apps/web/src/components/holding-detail/`)
-
-| Component | Props | Notes |
-|-----------|-------|-------|
-| `PositionSummary` | `detail: HoldingDetail` | 2x4 grid: shares, avg cost, market value, PnL, cost basis, realized PnL, mark price, quote time |
-| `CandlestickChart` | `symbol: string` | TradingView candlestick with date range PillToggle (1M/3M/6M/1Y/ALL) |
-| `LotsTable` | `lots: HoldingLot[]`, `markPrice: string \| null` | FIFO lots with per-lot unrealized PnL, totals row |
-| `HoldingTransactions` | `transactions`, `onEdit?`, `onDelete?` | Sorted table, Badge for BUY/SELL, edit/delete icons wired to callbacks |
-| `UnpricedWarning` | `symbol: string` | Amber banner when no price data |
-
-### Transaction Components (`apps/web/src/components/transactions/`)
-
-| Component | Props | Notes |
-|-----------|-------|-------|
-| `SellValidationError` | `error: SellValidationErrorData \| null` | Inline error: deficit qty, violation date, suggested fix. Uses `firstViolationDate` field. |
-| `TransactionForm` | `mode`, `transaction?`, `instruments`, `onSuccess`, `onError` | BUY/SELL toggle, instrument select, date/qty/price/fees inputs |
-| `TransactionFormModal` | `open`, `onClose`, `mode`, `transaction?`, `instruments`, `onSuccess` | Modal wrapper with toast feedback |
-| `TransactionsTable` | `transactions`, `onEdit`, `onDelete` | Sortable columns, type badges, formatted values, actions |
-| `DeleteConfirmation` | `open`, `onClose`, `transaction`, `onSuccess` | Danger modal with 422 sell validation handling |
-
-### Instrument Components (`apps/web/src/components/instruments/`)
-
-| Component | Props | Notes |
-|-----------|-------|-------|
-| `AddInstrumentModal` | `open`, `onClose`, `onSuccess` | Manual entry form (symbol search is stubbed). 409 duplicate detection. |
-| `SymbolSearchInput` | `value`, `onChange` | Text input with search stub message |
-
-### Session 7 Data Hooks (`apps/web/src/lib/hooks/`)
-
-| Hook | Params | Returns |
-|------|--------|---------|
-| `useChart` | `{ container, options? }` | `{ chart: IChartApi \| null }` |
-| `useHoldingDetail` | `symbol: string` | `{ data, isLoading, error, refetch }` |
-| `useMarketHistory` | `symbol, startDate, endDate` | `{ data: PriceBar[], isLoading, error }` |
-| `useTransactions` | `instrumentId?` | `{ data, isLoading, error, refetch }` |
-| `useInstruments` | none | `{ data, isLoading, error, refetch }` |
-
-### Session 7 Utility Functions
-
-| File | Functions | Notes |
-|------|-----------|-------|
-| `chart-candlestick-utils.ts` | `toCandlestickData(bars)` | PriceBar → TradingView CandlestickData. `Number()` exception (AD-S6c). 12 tests. |
-| `transaction-utils.ts` | `validateTransactionForm()`, `formatTransactionForApi()`, `sortTransactions()` | Client-side validation, API formatting, multi-column sort. 32 tests. |
-
-### Sell Validation Error Shape (Verified)
+### Sell Validation Error Shape
 
 ```json
 {
@@ -507,292 +339,100 @@ TradingView Lightweight Charts requires `number` values for chart data points. `
   }
 }
 ```
-Note: The field is `firstViolationDate` (not `firstNegativeDate` as in the master plan).
-
-### Cross-Page Navigation
-
-| From | To | Method |
-|------|----|--------|
-| Dashboard holdings table row | `/holdings/[symbol]` | `onRowClick` → `router.push()` |
-| Holdings page table row | `/holdings/[symbol]` | `onRowClick` → `router.push()` |
-| Holding detail back arrow | `/holdings` | `<Link>` |
-| Holding detail edit icon | TransactionFormModal (edit) | `onEdit` callback |
-| Holding detail delete icon | DeleteConfirmation modal | `onDelete` callback |
-
-### ToastProvider
-
-`ToastProvider` wraps all pages via `Shell` component. `useToast()` is available in any component rendered within the pages layout.
 
 ---
 
-## Session 8 — Code Review Hardening + LLM Advisor
+## Advisor Backend (`packages/advisor/`)
 
-### Phase 0: Hardening
-
-| Task | What Changed |
-|------|-------------|
-| H-1 | Snapshot rebuild wired in POST/PUT/DELETE transaction + DELETE instrument via `triggerSnapshotRebuild()` helper |
-| H-2 | GET /api/portfolio/snapshot reads cached snapshots first (read-only), only rebuilds on cold start |
-| H-3 | GET /api/market/search returns `{ results: [] }` with defensive client parsing |
-| H-4 | `fetchWithTimeout()` utility wrapping all provider fetch calls (10s default, AbortController) |
-| H-5 | Fonts bundled locally in `apps/web/src/fonts/` via `next/font/local` — no Google Fonts CDN dependency |
-
-### Advisor Backend (`packages/advisor/`)
+### File Inventory
 
 | File | Purpose |
 |------|---------|
 | `llm-adapter.ts` | Provider-agnostic interface: `LLMAdapter`, `Message`, `ToolCall`, `ToolDefinition`, `LLMResponse` |
-| `anthropic-adapter.ts` | Anthropic Claude implementation. Handles `tool_use`/`tool_result` translation (W-5). Non-streaming. |
-| `tools/get-top-holdings.ts` | Tool definition + executor for top N holdings by metric (S17) |
-| `tools/get-portfolio-snapshot.ts` | Tool definition + executor for portfolio overview (enhanced with summary in S17) |
-| `tools/get-holding.ts` | Tool definition + executor for single position detail with FIFO lots |
-| `tools/get-transactions.ts` | Tool definition + executor for filtered transaction list |
-| `tools/get-quotes.ts` | Tool definition + executor for quote freshness check |
+| `anthropic-adapter.ts` | Anthropic Claude implementation. Handles `tool_use`/`tool_result` translation. Non-streaming. Model: `claude-sonnet-4-6`. Adaptive thinking enabled. Max tokens: 16,000. |
+| `tools/get-top-holdings.ts` | Top N holdings by metric (allocation/value/pnl) with portfolio summary |
+| `tools/get-portfolio-snapshot.ts` | Portfolio overview with summary header |
+| `tools/get-holding.ts` | Single position detail with FIFO lots |
+| `tools/get-transactions.ts` | Filtered transaction list |
+| `tools/get-quotes.ts` | Quote freshness check |
 | `tools/index.ts` | Barrel export + `allToolDefinitions` array (5 tools) |
 | `tool-loop.ts` | Tool execution loop: LLM call → tool execution → loop (max 5 iterations) |
 | `system-prompt.ts` | System prompt covering all 5 intent categories |
+| `token-estimator.ts` | Conservative token estimation: 3.5 chars/token text, 3.0 structured JSON |
+| `context-budget.ts` | Budget constants: 200K model window, 174.7K for messages after reserves |
+| `context-window.ts` | `windowMessages()` — trims oldest turns when over budget. `groupIntoTurns()`. Never orphans tool calls. |
+| `summary-generator.ts` | `generateSummary()` — LLM rolling summaries. `formatSummaryPreamble()` — context markers. |
 | `index.ts` | Package barrel export |
 
-### Advisor API Routes
+### Chat Route Internals
 
-| Method | Route | Purpose |
-|--------|-------|---------|
-| POST | `/api/advisor/chat` | Send message, execute tool loop, return all generated messages. Creates thread if needed. |
-| GET | `/api/advisor/threads` | List all threads with message count, sorted by updatedAt desc |
-| GET | `/api/advisor/threads/[id]` | Thread detail with all messages |
-| DELETE | `/api/advisor/threads/[id]` | Delete thread + messages, return 204 |
+`POST /api/advisor/chat` (`apps/web/src/app/api/advisor/chat/route.ts`):
+1. Loads **all** messages (no limit)
+2. Windows via `windowMessages()` to fit context budget
+3. Prepends summary preamble if `thread.summaryText` exists
+4. Sends windowed messages to tool loop
+5. Fire-and-forget summary generation when messages are trimmed
 
-**Chat route internals:** `buildToolExecutors()` creates Prisma-backed executors for all 5 tools. All Decimal values formatted as `$X,XXX.XX` strings via `formatNum()`. Lot data uses `Lot.price` (per-unit cost) and `Lot.openedAt`. `getTopHoldings` returns top N holdings by allocation/value/pnl with portfolio summary. `getPortfolioSnapshot` includes summary header (total holdings, value, top 5, stale count).
+`buildToolExecutors()` creates Prisma-backed executors. All Decimal values formatted as `$X,XXX.XX` via `formatNum()` (uses `Decimal.toFixed(2)` — no `parseFloat`). Single message conversion pipeline (AD-S20-2): `parsePrismaMessage()` → `WindowableMessage` → `windowableToMessage()` → `Message`. Token calibration logging in development mode (AD-S20-3).
 
-### Advisor Frontend (`apps/web/src/components/advisor/`)
+### Thread Detail Response
 
-| Component | Purpose |
-|-----------|---------|
-| `AdvisorPanel` | Slide-out panel (448px max-w-md). Backdrop, Escape key, smooth transition. Manages thread/message display. |
-| `AdvisorHeader` | Title, New Thread button, Threads dropdown toggle, Close button |
-| `AdvisorMessages` | Scrollable message list with auto-scroll. Renders user/assistant/tool messages. Loading indicator. |
-| `AdvisorInput` | Textarea with auto-resize (max 4 lines), Enter to send, Shift+Enter for newline, loading spinner |
-| `SuggestedPrompts` | 3 clickable prompt cards for empty threads |
-| `ToolCallIndicator` | Collapsed/expanded tool call display with tool name labels |
-| `ThreadList` | Thread list dropdown with select and delete |
+`GET /api/advisor/threads/[id]` returns `hasSummary: boolean` (from `summaryText !== null`). Raw `summaryText` not exposed to frontend.
 
 ### Advisor Hook (`apps/web/src/lib/hooks/useAdvisor.ts`)
 
 ```typescript
 const {
-  threads, activeThreadId, messages, isLoading, error, isSetupRequired,
+  threads, activeThreadId, messages, isLoading, error, isSetupRequired, hasSummary,
   sendMessage, loadThreads, loadThread, newThread, deleteThread,
 } = useAdvisor();
 ```
 
-- `sendMessage`: Optimistic user message → POST /api/advisor/chat → append response messages
-- `isSetupRequired`: Set when API returns `LLM_NOT_CONFIGURED` (503) — shows setup instructions
-- `error`: Set on 502 (LLM error) or network failure
-
-### System Prompt Intent Categories (Verified Phase 2)
-
-| # | Category | Coverage |
-|---|----------|----------|
-| 1 | Cross-holding synthesis | Rankings by PnL contribution, allocation comparison |
-| 2 | Tax-aware reasoning | FIFO lot breakdown, explicit per-lot gain calculation |
-| 3 | Performance attribution | Multi-window comparison, holding-level performance |
-| 4 | Concentration awareness | Allocation percentage analysis, threshold flagging |
-| 5 | Staleness/data quality | 4-step freshness protocol, 2-hour threshold, disclosure template |
-
-### New Tests (62 new, 469 total)
-
-| File | Tests | Scope |
-|------|-------|-------|
-| `packages/advisor/__tests__/tool-executors.test.ts` | 12 | Tool executor parameter passing, defaults, error cases |
-| `packages/advisor/__tests__/tool-loop.test.ts` | 7 | Loop termination, tool error capture, max iterations, adapter error propagation |
-| `packages/advisor/__tests__/anthropic-adapter.test.ts` | 6 | SDK mock, message translation, tool_use/tool_result, model env var |
-| `packages/advisor/__tests__/exports.test.ts` | 8 | Barrel exports, tool definitions, system prompt coverage |
-| `apps/web/__tests__/api/advisor/chat.test.ts` | 8 | 503 missing key, 400 validation, thread creation, 404, 502 LLM error |
-| `apps/web/__tests__/api/advisor/threads.test.ts` | 8 | Thread list, thread detail, thread delete, 404, 500 |
-| `apps/web/__tests__/api/advisor/useAdvisor.test.ts` | 7 | Frontend API integration (fetch shapes, error handling) |
-| Hardening tests (Phases 0) | 6 | search route, fetchWithTimeout |
+`isSetupRequired`: Set when API returns `LLM_NOT_CONFIGURED` (503).
 
 ---
 
-## Session 9 — Full-Stack Validation + Polish + MVP Signoff
-
-### Phase 0: Live LLM Verification
-
-| Change | Detail |
-|--------|--------|
-| Tool loop empty string fix | `tool-loop.ts` line 94: `??` → `||` to coalesce empty strings to fallback message |
-| Model update | Default model changed to `claude-sonnet-4-6` |
-| Adaptive thinking | `thinking: { type: 'adaptive' }` added to Anthropic adapter for higher-quality advisor responses |
-| Max tokens increase | Default `max_tokens` raised from 4096 to 16000 to accommodate adaptive thinking |
-| Live verification | All 5 advisor intent categories verified against real LLM with seed data |
-
-### Phase 2: Accessibility & Polish
-
-| Component | Change |
-|-----------|--------|
-| `useFocusTrap` hook | New hook at `apps/web/src/lib/hooks/useFocusTrap.ts` — Tab cycling, Shift+Tab backward, focus return on close |
-| `AdvisorPanel` | Focus trap wired, `role="dialog"`, `aria-label`, `aria-modal="true"`, `aria-hidden` |
-| `Toast` container | `role="status"`, `aria-live="polite"` on container |
-| `UnpricedWarning` | `role="alert"` added |
-| `DeleteConfirmation` | `id="delete-confirm-desc"` for ARIA describedby |
-
-### New Documentation
-
-| File | Purpose |
-|------|---------|
-| `KNOWN-LIMITATIONS.md` | 8 documented MVP gaps with impact and mitigation |
-| `data/test/advisor-live-verification.md` | All 5 intent categories verified with pass/fail |
-| `data/test/smoke-test-results.md` | 22-point smoke test results |
-
----
-
-## Session 10 — Hardening + Bulk Paste + CI
-
-### Architecture Decisions
+## Key Architecture Decisions
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| AD-S10a | Snapshot rebuild in `prisma.$transaction()` | Atomic delete + reinsert. Prevents partial snapshots on crash or concurrent write. 30s timeout for large rebuilds. |
-| AD-S10b | `GET /api/portfolio/snapshot` is read-only | HTTP semantic correctness. Returns `{ needsRebuild: true }` when empty. Rebuild via `POST /api/portfolio/rebuild` or transaction CRUD. UI hook auto-triggers rebuild. |
-| AD-S10c | Bulk insert: all-or-none if sell validation fails | If the combined batch + existing transactions violates the sell invariant, zero rows insert. Prevents confusing partial imports. |
-| AD-S10d | Cross-validation in CI via Vitest wrapper | 749-check regression guard runs automatically via `pnpm test`. Three paths: engine, independent FIFO, cross-consistency. |
+| AD-S10a | Snapshot rebuild in `prisma.$transaction()` | Atomic delete + reinsert. 30s timeout. |
+| AD-S10b | `GET /api/portfolio/snapshot` is read-only | Rebuild via `POST /api/portfolio/rebuild` or transaction CRUD. |
+| AD-S10c | Bulk insert: all-or-none if sell validation fails | Prevents confusing partial imports. |
+| AD-S10d | Cross-validation in CI via Vitest wrapper | 749-check regression guard runs via `pnpm test`. |
+| AD-S18-1 | Backfill lookback: 10 years | Tiingo provides 30+ years free. Covers any reasonable history. |
+| AD-S19-1 | Token estimation via character-ratio heuristic | Conservative overestimation is the safe failure mode. |
+| AD-S19-2 | Turn-boundary trimming only | Prevents orphaned tool results or context-free responses. |
+| AD-S19-3 | Summary triggered by windowing signal | Decouples "when" from "how". |
+| AD-S19-4 | Summary: same adapter, minimal prompt, no tools | ~1,800 tokens per summary. |
+| AD-S19-5 | Summary is fire-and-forget | User gets answer immediately. Failure degrades gracefully. |
+| AD-S19-6 | `summaryText` not exposed to frontend | Internal to LLM context. Users see indicator only. |
+| AD-S20-1 | Rolling summary trigger fires on every trim | Original `!summaryText` guard made merge path unreachable. |
+| AD-S20-2 | Single message conversion pipeline | `parsePrismaMessage → windowableToMessage`. Eliminated dual converter. |
+| AD-S20-3 | Token calibration logging in dev mode only | Zero production overhead. Validates char/token heuristic. |
 
-### Phase 0: Data Integrity Fixes
+---
 
-| Fix | Detail |
-|-----|--------|
-| W-3 | `triggerSnapshotRebuild()` wraps entire rebuild in `prisma.$transaction()`. `PrismaSnapshotStore` and `PrismaPriceLookup` accept `Pick<PrismaClient, ...>` to work with transaction clients. |
-| W-4 | GET snapshot cold-start write path removed. New `POST /api/portfolio/rebuild` endpoint. `usePortfolioSnapshot` hook detects `needsRebuild` and auto-triggers rebuild. |
-| W-5 | Block comment in `anthropic-adapter.ts` explaining tool_result translation: STALKER role='tool' → Anthropic role='user' with tool_result content blocks. |
-| W-8 | `formatNum()` in advisor chat route uses `Decimal.toFixed(2)` directly with regex-based thousands separator. No `parseFloat()`. |
-
-### Bulk Paste Feature
+## Bulk Paste Feature
 
 | Component | Purpose |
 |-----------|---------|
-| `bulk-parser.ts` | Tab/multi-space parser with per-row validation. 23 tests. |
-| `POST /api/transactions/bulk` | Zod schema, symbol resolution, sell validation per instrument, $transaction insert, snapshot rebuild. 8 tests. |
-| `BulkPreviewTable.tsx` | Preview with green/red row indicators, error messages, summary count |
-| `BulkPastePanel.tsx` | Collapsible disclosure panel with textarea, parse, confirm flow |
+| `bulk-parser.ts` | Tab/multi-space parser with per-row validation |
+| `POST /api/transactions/bulk` | Zod schema, symbol resolution, sell validation, $transaction insert, snapshot rebuild |
+| `BulkPreviewTable.tsx` | Preview with green/red row indicators |
+| `BulkPastePanel.tsx` | Collapsible textarea with parse/confirm flow |
 | `useBulkImport.ts` | Hook for API call with loading/error/result state |
 
-### CI & Performance
+---
+
+## CI & Infrastructure
 
 | Item | Detail |
 |------|--------|
 | `.github/workflows/ci.yml` | Push/PR to main: tsc, test, build. pnpm 10, Node 20, `--frozen-lockfile`. |
 | `data/test/cross-validate.test.ts` | 3 Vitest tests wrapping 749 cross-validation checks |
-| `data/test/benchmark-rebuild.ts` | 20 instruments, 215 txs, 9000 bars → 147ms rebuild (threshold: 1000ms) |
-| `prefers-reduced-motion` | CSS media query gating all animations (toast, spinner, skeleton, advisor panel) |
-
-### New Tests (37 new, 506 total)
-
-| File | Tests | Scope |
-|------|-------|-------|
-| `apps/web/__tests__/api/portfolio/prisma-implementations.test.ts` | +2 | Transaction atomicity, tx client compat |
-| `apps/web/__tests__/api/portfolio/portfolio.test.ts` | +1 | GET snapshot read-only |
-| `apps/web/src/lib/__tests__/bulk-parser.test.ts` | 23 | Parser: valid rows, missing fields, invalid dates, negative qty, case-insensitive type, etc. |
-| `apps/web/__tests__/api/transactions/bulk.test.ts` | 8 | Bulk API: happy path, unknown symbols, sell validation, dry run, empty batch, date conversion |
-| `data/test/cross-validate.test.ts` | 3 | 749 sub-checks across Path A/B/C |
-
----
-
-## Session 18 — Visual UAT Fixes + UX Enhancements
-
-### Backfill Lookback (AD-S18-1)
-
-Default backfill lookback changed from 2 years to **10 years** in all locations:
-- `apps/web/src/app/api/instruments/route.ts` (POST handler)
-- `apps/web/src/lib/auto-create-instrument.ts` (`triggerBackfill`)
-- `scripts/backfill-missing.ts` (one-off script)
-
-New re-backfill script: `scripts/re-backfill-history.ts` — extends price bar history for existing instruments. Batches of 45 with 60s pause for Tiingo rate limits.
-
-### Holdings Table Columns
-
-**New column order:** Symbol | Name | First Buy | Qty | **Avg Cost** | Cost Basis | **Current Price** | Value | PnL $ | PnL % | Alloc % | Actions
-
-- "Price" renamed to "Current Price"
-- "Avg Cost" column added: `avgCostPerShare(costBasis, qty)` in `holdings-utils.ts`
-- "Cost Basis" moved next to "Avg Cost" for logical grouping
-- Avg Cost uses Decimal division with zero-guard (returns null for closed positions)
-
-### Utility Functions
-
-| File | Functions | Notes |
-|------|-----------|-------|
-| `holdings-utils.ts` | `avgCostPerShare()` | `costBasis / qty` via Decimal.js. Returns null if qty is zero. |
-
-### useHoldingDetail Resilience
-
-`useHoldingDetail` hook retries once on HTTP 500 (500ms delay). Error messages now include server error body for diagnostics.
-
-### useHoldings Refetch Behavior
-
-`useHoldings` hook no longer sets `isLoading=true` on refetch — only on initial load. Prevents PortfolioTable unmount/remount that was destroying pagination state.
-
-### "Add Another" Instrument Flow
-
-`AddInstrumentModal` shows success state after creation with two buttons: "Add Another" (resets form) and "Done" (closes modal).
-
-### New Tests (6 new, 683 total)
-
-| File | Tests | Scope |
-|------|-------|-------|
-| `apps/web/src/lib/__tests__/holdings-utils.test.ts` | +6 | avgCostPerShare (4), avgCost sort (2) |
-
----
-
-## Session 19 — Advisor Context Window Management
-
-### Context Window Modules (`packages/advisor/src/`)
-
-| File | Purpose |
-|------|---------|
-| `token-estimator.ts` | Conservative token estimation: 3.5 chars/token for text, 3.0 for structured JSON. Functions: `estimateTokens`, `estimateMessageTokens`, `estimateConversationTokens`. |
-| `context-budget.ts` | Budget constants: 200K model window, 174.7K available for messages after reserves. `CONTEXT_BUDGET.MESSAGE_BUDGET` getter. |
-| `context-window.ts` | `windowMessages()` — trims oldest turns when over budget. `groupIntoTurns()` — groups user+assistant+tool messages. Never orphans tool calls. |
-| `summary-generator.ts` | `generateSummary()` — LLM-generated rolling summaries. `formatSummaryPreamble()` — wraps summary with context markers. |
-
-### Chat Route Changes
-
-The `POST /api/advisor/chat` route now:
-1. Loads **all** messages (no longer limited to 50)
-2. Windows messages via `windowMessages()` to fit within context budget
-3. Prepends summary preamble if `summaryText` exists on the thread
-4. Sends windowed messages to tool loop
-5. Fire-and-forget summary generation when messages are trimmed and no summary exists
-
-### Thread Detail Response
-
-`GET /api/advisor/threads/[id]` now includes `hasSummary: boolean` (derived from `summaryText !== null`). Raw `summaryText` is not exposed to the frontend (AD-S19-6).
-
-### Frontend
-
-`AdvisorMessages` component accepts optional `hasSummary` prop. Renders info banner when true:
-> "Older messages have been summarized to maintain conversation quality."
-
-### Architecture Decisions
-
-| # | Decision | Rationale |
-|---|----------|-----------|
-| AD-S19-1 | Token estimation via character-ratio heuristic | Conservative overestimation is the safe failure mode. No external dependency. |
-| AD-S19-2 | Turn-boundary trimming only | Prevents orphaned tool results or context-free assistant responses. |
-| AD-S19-3 | Summary generation triggered by windowing signal | Decouples "when" from "how". |
-| AD-S19-4 | Summary uses same adapter, minimal prompt, no tools | Keeps cost low (~1,800 tokens per summary). |
-| AD-S19-5 | Summary is fire-and-forget | User gets answer immediately. Failure degrades gracefully. |
-| AD-S19-6 | `summaryText` not exposed to frontend | Internal to LLM context. Users see indicator only. |
-
-### New Tests (35 new, 718 total)
-
-| File | Tests | Scope |
-|------|-------|-------|
-| `packages/advisor/__tests__/token-estimator.test.ts` | 10 | Token estimation, conversation tokens, budget constants |
-| `packages/advisor/__tests__/context-window.test.ts` | 11 | Turn grouping, windowing, trimming, MIN_RECENT_MESSAGES, shouldGenerateSummary |
-| `packages/advisor/__tests__/summary-generator.test.ts` | 6 | Summary generation, rolling merge, fallback, tool filtering, preamble |
-| `packages/advisor/__tests__/exports.test.ts` | +2 | Context window exports, CONTEXT_BUDGET getter |
-| `apps/web/__tests__/api/advisor/chat.test.ts` | +4 | Short thread no-op, summary preamble, summary trigger, failure resilience |
-| `apps/web/__tests__/api/advisor/threads.test.ts` | +2 | hasSummary true/false |
+| `prefers-reduced-motion` | CSS media query gating all animations |
+| Seed data | 28 instruments, ~8300 bars, 30 transactions, 28 quotes (3 stale) |
 
 ---
 

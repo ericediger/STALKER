@@ -429,37 +429,44 @@ function formatNum(value: { toFixed(dp: number): string }): string {
 }
 
 /**
- * Convert a Prisma AdvisorMessage (JSON strings) to the internal Message format.
+ * Parse a Prisma AdvisorMessage row (JSON strings) into a WindowableMessage (parsed objects).
+ * AD-S20-2: Single pipeline — parsePrismaMessage → windowableToMessage.
  */
-function prismaMessageToInternal(msg: {
+function parsePrismaMessage(msg: {
+  id: string;
   role: string;
   content: string;
   toolCalls: string | null;
   toolResults: string | null;
-}): Message {
-  const message: Message = {
-    role: msg.role as 'user' | 'assistant' | 'tool',
-    content: msg.content,
-  };
+  createdAt: Date;
+}): WindowableMessage {
+  let toolCalls: unknown;
+  let toolResults: unknown;
 
   if (msg.toolCalls) {
     try {
-      message.toolCalls = JSON.parse(msg.toolCalls) as Message['toolCalls'];
+      toolCalls = JSON.parse(msg.toolCalls);
     } catch {
       // Ignore malformed JSON
     }
   }
 
-  if (msg.role === 'tool' && msg.toolResults) {
+  if (msg.toolResults) {
     try {
-      const parsed = JSON.parse(msg.toolResults) as { toolCallId?: string };
-      message.toolCallId = parsed.toolCallId;
+      toolResults = JSON.parse(msg.toolResults);
     } catch {
       // Ignore malformed JSON
     }
   }
 
-  return message;
+  return {
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    toolCalls,
+    toolResults,
+    createdAt: msg.createdAt,
+  };
 }
 
 /**
@@ -538,15 +545,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     // Load thread for summary text
     const thread = await prisma.advisorThread.findUnique({ where: { id: threadId } });
 
-    // Window messages to fit within context budget
-    const windowableMessages: WindowableMessage[] = historyMessages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      toolCalls: m.toolCalls ? JSON.parse(m.toolCalls) : undefined,
-      toolResults: m.toolResults ? JSON.parse(m.toolResults) : undefined,
-      createdAt: m.createdAt,
-    }));
+    // AD-S20-2: Single pipeline — parse once, then window
+    const windowableMessages: WindowableMessage[] = historyMessages.map(parsePrismaMessage);
 
     const windowResult = windowMessages(windowableMessages, thread?.summaryText ?? null);
 
@@ -581,7 +581,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     const toolExecutors = buildToolExecutors();
 
-    let result: { messages: Message[]; finalResponse: string };
+    let result: { messages: Message[]; finalResponse: string; usage?: { inputTokens: number; outputTokens: number } };
     try {
       result = await executeToolLoop({
         adapter,
@@ -596,6 +596,20 @@ export async function POST(request: NextRequest): Promise<Response> {
         { error: 'Advisor temporarily unavailable', code: 'LLM_ERROR' },
         { status: 502 },
       );
+    }
+
+    // AD-S20-3: Token calibration logging (development only)
+    if (process.env.NODE_ENV === 'development') {
+      const estimated = windowResult.estimatedTokens;
+      const actual = result.usage?.inputTokens;
+      if (actual) {
+        const ratio = estimated / actual;
+        console.log(
+          `[advisor] Token calibration: estimated=${estimated}, actual=${actual}, ` +
+          `ratio=${ratio.toFixed(2)} (${ratio > 1 ? 'overestimate' : 'UNDERESTIMATE'} ` +
+          `by ${Math.abs((ratio - 1) * 100).toFixed(0)}%)`,
+        );
+      }
     }
 
     // Persist generated messages

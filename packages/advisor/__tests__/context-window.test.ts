@@ -160,7 +160,7 @@ describe('windowMessages', () => {
     expect(result.shouldGenerateSummary).toBe(true);
   });
 
-  it('sets shouldGenerateSummary false when messages trimmed but summary already exists', () => {
+  it('sets shouldGenerateSummary true when messages trimmed and summary already exists (rolling)', () => {
     const longContent = 'x'.repeat(400_000);
     const msgs = [
       makeMsg('1', 'user', longContent),
@@ -174,6 +174,6 @@ describe('windowMessages', () => {
     ];
     const result = windowMessages(msgs, 'Existing summary of earlier discussion.');
     expect(result.trimmed.length).toBeGreaterThan(0);
-    expect(result.shouldGenerateSummary).toBe(false);
+    expect(result.shouldGenerateSummary).toBe(true);
   });
 });

@@ -382,6 +382,122 @@ describe('POST /api/advisor/chat', () => {
     expect(summaryUpdateCall).toBeDefined();
   });
 
+  it('sends windowed messages when thread exceeds budget', async () => {
+    const now = new Date();
+
+    // Simulate a long thread: windowMessages returns fewer messages than total
+    const allMsgs = Array.from({ length: 20 }, (_, i) => ({
+      id: `msg-${i}`,
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `Message ${i}`,
+      toolCalls: null,
+      toolResults: null,
+      createdAt: new Date(now.getTime() + i * 1000),
+    }));
+
+    // windowMessages trims oldest messages, keeps recent 6
+    const keptMsgs = allMsgs.slice(14); // last 6 messages
+    const trimmedMsgs = allMsgs.slice(0, 14);
+    mockWindowMessages.mockReturnValue({
+      messages: keptMsgs.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
+      trimmed: trimmedMsgs.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+      })),
+      shouldGenerateSummary: true,
+      estimatedTokens: 170_000,
+    });
+
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'long-thread',
+      title: 'Long thread',
+      summaryText: null,
+    });
+    mockPrismaClient.advisorMessage.create.mockResolvedValue({});
+    mockPrismaClient.advisorMessage.findMany.mockResolvedValue(allMsgs);
+    mockPrismaClient.advisorThread.update.mockResolvedValue({});
+
+    mockGenerateSummary.mockResolvedValue('Summary of trimmed messages');
+
+    mockExecuteToolLoop.mockResolvedValue({
+      messages: [{ role: 'assistant', content: 'Here is my response.' }],
+      finalResponse: 'Here is my response.',
+    });
+
+    const req = makeJsonRequest({ threadId: 'long-thread', message: 'Latest question' });
+    const res = await POST(req as never);
+    const body = (await res.json()) as { messages: Array<{ content: string }> };
+
+    expect(res.status).toBe(200);
+    expect(body.messages[0]!.content).toBe('Here is my response.');
+
+    // Verify tool loop received fewer messages than total in thread
+    const toolLoopCall = mockExecuteToolLoop.mock.calls[0]![0] as { messages: Array<{ role: string }> };
+    // Should have the 6 windowed messages, NOT all 20
+    expect(toolLoopCall.messages.length).toBeLessThan(allMsgs.length);
+    // Most recent messages should be present
+    expect(toolLoopCall.messages.some(
+      (m: { content?: string }) => m.content === 'Message 18' || m.content === 'Message 19',
+    )).toBe(true);
+  });
+
+  it('triggers rolling summary when messages trimmed and summary already exists', async () => {
+    const now = new Date();
+    const trimmedMsg = { id: 'old-1', role: 'user', content: 'Old message', createdAt: now };
+
+    mockWindowMessages.mockReturnValue({
+      messages: [{ id: 'recent-1', role: 'user', content: 'Recent', createdAt: now }],
+      trimmed: [trimmedMsg],
+      shouldGenerateSummary: true,
+      estimatedTokens: 170_000,
+    });
+
+    mockPrismaClient.advisorThread.findUnique.mockResolvedValue({
+      id: 'rolling-thread',
+      title: 'Rolling summary',
+      summaryText: 'Previous summary of earlier discussion.',
+    });
+    mockPrismaClient.advisorMessage.create.mockResolvedValue({});
+    mockPrismaClient.advisorMessage.findMany.mockResolvedValue([
+      { id: 'recent-1', role: 'user', content: 'Recent', toolCalls: null, toolResults: null, createdAt: now },
+    ]);
+    mockPrismaClient.advisorThread.update.mockResolvedValue({});
+
+    mockGenerateSummary.mockResolvedValue('Updated rolling summary');
+
+    mockExecuteToolLoop.mockResolvedValue({
+      messages: [{ role: 'assistant', content: 'Response.' }],
+      finalResponse: 'Response.',
+    });
+
+    const req = makeJsonRequest({ threadId: 'rolling-thread', message: 'Recent' });
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(200);
+
+    // Wait for fire-and-forget
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // generateSummary should be called with the existing summary
+    expect(mockGenerateSummary).toHaveBeenCalledTimes(1);
+    const summaryArgs = mockGenerateSummary.mock.calls[0] as [unknown, unknown, string | null];
+    expect(summaryArgs[2]).toBe('Previous summary of earlier discussion.');
+
+    // Summary should have been persisted
+    const updateCalls = mockPrismaClient.advisorThread.update.mock.calls;
+    const summaryUpdateCall = updateCalls.find(
+      (call: Array<{ data?: { summaryText?: string } }>) => call[0]?.data?.summaryText === 'Updated rolling summary',
+    );
+    expect(summaryUpdateCall).toBeDefined();
+  });
+
   it('summary generation failure does not break chat response', async () => {
     const now = new Date();
 

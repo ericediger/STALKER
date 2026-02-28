@@ -1,7 +1,7 @@
 # AGENTS.md — STALKER Tech Stack & Design Decisions
 
 **Project:** STALKER — Stock & Portfolio Tracker + LLM Advisor
-**Last Updated:** 2026-02-27 (Post-Session 19 — Advisor Context Window Management)
+**Last Updated:** 2026-02-28 (Post-Session 20 — Hardening & Project Close-Out)
 
 ---
 
@@ -21,7 +21,7 @@
 | **Typography** | Crimson Pro (headings), DM Sans (body), JetBrains Mono (numeric tables) | Local woff2 via next/font/local (Session 8 H-5) |
 | **Charting** | TradingView Lightweight Charts 5.1.0 | MIT license, v5 API: `chart.addSeries(AreaSeries, opts)` |
 | **Monorepo** | pnpm 10.30.1 workspaces | Native, fast, no Turborepo/Nx needed |
-| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 718 tests passing |
+| **Testing** | Vitest 3.2.4 | Fast, TypeScript-native, 720 tests passing |
 | **Validation** | Zod 4.3.6 | Input validation for API routes |
 | **IDs** | ULID 2.x | Sortable, no coordination, SQLite-friendly |
 | **Process manager** | concurrently 9.x | Runs Next.js + scheduler together via `pnpm dev` |
@@ -38,7 +38,7 @@ pnpm exclusively. No npm, no yarn. Install with `pnpm install`. Run scripts with
 | `@stalker/shared` | `packages/shared/` | Types, Decimal utils, ULID, constants | Nothing |
 | `@stalker/analytics` | `packages/analytics/` | FIFO lots, PnL, portfolio value series | `@stalker/shared` |
 | `@stalker/market-data` | `packages/market-data/` | Provider interface, implementations (FMP, Tiingo, AV), calendar, rate limiter | `@stalker/shared` |
-| `@stalker/advisor` | `packages/advisor/` | LLM adapter, tool definitions, system prompt, context window management | `@stalker/shared` |
+| `@stalker/advisor` | `packages/advisor/` | LLM adapter, tool definitions, system prompt, context window management (token estimation, windowing, rolling summaries) | `@stalker/shared` |
 | `@stalker/scheduler` | `packages/scheduler/` | Polling orchestration | `@stalker/market-data` |
 | `web` | `apps/web/` | Next.js application (UI + API routes) | All packages |
 
