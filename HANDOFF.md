@@ -8,7 +8,7 @@
 
 ## Current State
 
-Session 21 addressed 7 issues from IAT (Internal Acceptance Testing) feedback across three categories: data bugs, performance, and missing features. The root cause of most issues was that only 3 of 87 instruments had LatestQuotes — the detail page showed $0 market value and wrong P&L for everything else.
+Session 21 addressed 7 issues from IAT (Internal Acceptance Testing) feedback across three categories: data bugs, performance, and missing features. The root cause of most issues was that only 3 of 87 instruments had LatestQuotes — the detail page showed $0 market value and wrong P&L for everything else. Additionally, the advisor system prompt was revised for a tighter, more professional tone.
 
 ### What Changed (Session 21)
 
@@ -22,6 +22,9 @@ Session 21 addressed 7 issues from IAT (Internal Acceptance Testing) feedback ac
 **Features:**
 - **Detail page new metrics** — Allocation %, First Buy date, Day Change ($+%), Data Source. PositionSummary expanded from 8 to 12 metrics (3 rows of 4).
 - **Google News link** — New `LatestNews.tsx` component on holding detail page. Constructs Google News search URL with company name in quotes + 90-day date range. External link, no backend needed.
+
+**Other:**
+- **Advisor system prompt revised** — Tighter, more professional tone. "Senior Portfolio Analyst Assistant" role. Streamlined section headings and wording. `ADVISOR-SYSTEM-PROMPT.md` added to repo root as editable reference copy.
 
 **Data Issues (Not Code Bugs):**
 - XRP ticker maps to "Bitwise XRP ETF" (correct STOCK behavior). If user intended XRP crypto, they need to re-add with crypto provider mapping.

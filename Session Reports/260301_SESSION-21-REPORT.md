@@ -8,7 +8,7 @@
 
 ## Session Overview
 
-Session 21 addressed 7 issues identified during Internal Acceptance Testing (IAT). The issues fell into three categories: data bugs (wrong P&L and prices on the holding detail page), performance problems (slow initial page loads, full-page reload on instrument add), and missing features (allocation %, day change, news links). All code changes were completed, type-checked, and verified against the full test suite.
+Session 21 addressed 7 issues identified during Internal Acceptance Testing (IAT). The issues fell into three categories: data bugs (wrong P&L and prices on the holding detail page), performance problems (slow initial page loads, full-page reload on instrument add), and missing features (allocation %, day change, news links). Additionally, the advisor system prompt was revised for a tighter, more professional tone. All code changes were completed, type-checked, and verified against the full test suite.
 
 ---
 
@@ -54,6 +54,10 @@ PositionSummary expanded from 8 to 12 metrics (3 rows of 4), adding Allocation, 
 - **XRP:** Stored as STOCK type ("Bitwise XRP ETF"). Tiingo returns correct ETF prices. If user intended XRP crypto (~$1.42), that's a data configuration issue — needs re-add with crypto provider mapping.
 - **APLD staleness (29.08 vs 27.27):** Resolved by Phase 1 — PriceBar fallback now shows last known price. The price gap is expected staleness (last bar date: 2026-02-25).
 
+### Advisor System Prompt Revision
+
+User edited the system prompt for a more professional, concise tone. Key changes: role upgraded to "Senior Portfolio Analyst Assistant", section headings streamlined (e.g., "Your Tools" → "Tools Available", "Scope Boundaries" → "Scope"), wording tightened throughout. An editable markdown copy (`ADVISOR-SYSTEM-PROMPT.md`) was added to the repo root for future editing convenience. The exports test was updated to match the new wording (`"concentration"` instead of `"concentrated"`).
+
 ---
 
 ## Technical Details
@@ -97,6 +101,9 @@ Added 4 fields: `allocation: string`, `firstBuyDate: string | null`, `dayChange:
 | `apps/web/src/app/(pages)/holdings/[symbol]/page.tsx` | Modified | Added LatestNews import + usage |
 | `Planning/SESSION-20-KICKOFF.md` | Moved | From root |
 | `Planning/SESSION-20-PLAN.md` | Moved | From root |
+| `packages/advisor/src/system-prompt.ts` | Modified | Revised system prompt — tighter, more professional tone |
+| `packages/advisor/__tests__/exports.test.ts` | Modified | Updated test: `concentrated` → `concentration` to match revised prompt |
+| `ADVISOR-SYSTEM-PROMPT.md` | **New** | Editable markdown copy of advisor system prompt |
 | `HANDOFF.md` | Updated | Session 21 state |
 
 ---
