@@ -73,7 +73,7 @@ describe('advisor package exports', () => {
     // Performance attribution
     expect(SYSTEM_PROMPT).toContain('performance');
     // Concentration awareness
-    expect(SYSTEM_PROMPT).toContain('concentrated');
+    expect(SYSTEM_PROMPT).toContain('concentration');
     // Staleness/data quality
     expect(SYSTEM_PROMPT).toContain('stale');
   });
