@@ -1,14 +1,31 @@
 # HANDOFF.md — STALKER Current State
 
-**Last Updated:** 2026-02-28 (Post-Session 20)
-**Last Session:** Session 20 — Hardening, Bug Fixes & Project Close-Out
-**Status:** Production Ready — Project Complete
+**Last Updated:** 2026-03-01 (Post-Session 21)
+**Last Session:** Session 21 — IAT Remediation (Bugs, Performance, Features)
+**Status:** Production Ready
 
 ---
 
 ## Current State
 
-Session 20 was the project's closing sprint. It fixed a rolling summary trigger bug (AD-S20-1), added 2 missing integration tests, consolidated dual message converters into a single pipeline (AD-S20-2), added token calibration logging for development (AD-S20-3), and brought all documentation current (Master Plan v5.0).
+Session 21 addressed 7 issues from IAT (Internal Acceptance Testing) feedback across three categories: data bugs, performance, and missing features. The root cause of most issues was that only 3 of 87 instruments had LatestQuotes — the detail page showed $0 market value and wrong P&L for everything else.
+
+### What Changed (Session 21)
+
+**Bug Fixes:**
+- **Detail page price fallback** — `holdings/[symbol]/route.ts` now falls back to the most recent daily PriceBar close when no LatestQuote exists. Builds a synthetic `latestQuote` response with `provider: 'price-history'`. Fixes $0 market value and incorrect P&L on 84 of 87 instruments.
+
+**Performance:**
+- **Non-blocking snapshot rebuild** — `usePortfolioSnapshot` no longer blocks page render during rebuild. Shows existing data immediately, rebuilds in background, updates when complete. Added `isRebuilding` state + spinner indicator.
+- **No more full page reload** — `window.location.reload()` on instrument add replaced with targeted `refetchHoldings()` + `refetchInstruments()`.
+
+**Features:**
+- **Detail page new metrics** — Allocation %, First Buy date, Day Change ($+%), Data Source. PositionSummary expanded from 8 to 12 metrics (3 rows of 4).
+- **Google News link** — New `LatestNews.tsx` component on holding detail page. Constructs Google News search URL with company name in quotes + 90-day date range. External link, no backend needed.
+
+**Data Issues (Not Code Bugs):**
+- XRP ticker maps to "Bitwise XRP ETF" (correct STOCK behavior). If user intended XRP crypto, they need to re-add with crypto provider mapping.
+- APLD price staleness resolved by PriceBar fallback — last bar date is 2026-02-25.
 
 ### What Exists
 
@@ -33,17 +50,11 @@ Session 20 was the project's closing sprint. It fixed a rolling summary trigger 
 - `@stalker/advisor` — 5 tools, system prompt, context window management (token estimation, message windowing, rolling summaries), single message conversion pipeline
 - `@stalker/scheduler` — Batch polling via `pollAllQuotes()`, budget-aware, graceful shutdown
 
-**Session 20 Changes:**
-- **Rolling summary fix** — Removed `!summaryText` guard from `shouldGenerateSummary` in `context-window.ts`. Rolling summaries now fire on every trim, enabling the merge path in `summary-generator.ts`. (AD-S20-1)
-- **Message converter consolidation** — Created `parsePrismaMessage()` for Prisma→WindowableMessage parsing. Retired unused `prismaMessageToInternal()`. Single pipeline: `parsePrismaMessage → windowableToMessage`. (AD-S20-2)
-- **Token calibration logging** — Development-mode log comparing estimated vs actual token counts. Extended `executeToolLoop` to return `usage` from final LLM response. (AD-S20-3)
-- **Integration tests** — Added windowed long-thread test (verifies LLM receives fewer messages than total). Added rolling summary wiring test (verifies `generateSummary` called with existing summary). +2 tests → 720 total.
-- **Documentation** — Master Plan v5.0 (S12–S20 complete), HANDOFF, CLAUDE.md, AGENTS.md all updated.
-
-**API Layer (Sessions 4–20):**
+**API Layer (Sessions 4–21):**
 - **22 endpoints**, all implemented — no stubs remaining
 - All transaction writes enforce sell validation + snapshot invalidation
 - Advisor chat with 5-tool loop, context windowing, rolling summary generation
+- Detail page API now returns allocation, firstBuyDate, dayChange/dayChangePct
 
 **Real Portfolio State:**
 - 83 instruments (all with proper names)
@@ -77,7 +88,7 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-4 through KL-6).
 | TypeScript errors | 0 |
 | Packages created | 5 of 5 (all implemented) |
 | API endpoints | 22 (all implemented) |
-| UI components | 49 |
+| UI components | 50 (+1: LatestNews) |
 | Data hooks | 12 |
 | Utility modules | 19 |
 | UI pages | 4 (Portfolio, Charts, Holding Detail, Settings) |
@@ -86,17 +97,18 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-4 through KL-6).
 | Advisor tools | 5 (getTopHoldings, getPortfolioSnapshot, getHolding, getTransactions, getQuotes) |
 | Real portfolio | 83 instruments, 87 transactions, 53K+ bars |
 | Snapshot rebuild | ~4s for 83 instruments |
-| Sessions completed | 20 (zero scope cuts) |
+| Sessions completed | 21 (zero scope cuts) |
 
 ---
 
-## Architecture Decisions (Session 20)
+## Architecture Decisions (Session 21)
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| AD-S20-1 | Rolling summary trigger fires on every trim, not just the first | Original `!summaryText` guard made the merge path in `summary-generator.ts` unreachable. Correct behavior: any trim offers messages for summarization. |
-| AD-S20-2 | Single message conversion pipeline: `parsePrismaMessage → windowableToMessage` | Eliminates dual converter paths. One parse step (JSON strings → objects), one conversion step (WindowableMessage → Message). |
-| AD-S20-3 | Token calibration logging in development mode only | Zero production overhead. Provides data to validate the 3.0–3.5 chars/token heuristic. |
+| AD-S21-1 | PriceBar fallback with `provider: 'price-history'` | Reuses existing `latestQuote` response shape. Provider field lets UI distinguish live vs historical data. |
+| AD-S21-2 | Non-blocking rebuild: render stale data, rebuild in background | Eliminates 4–30s blocking page loads. User sees data immediately. |
+| AD-S21-3 | Day change computed from 2nd-most-recent PriceBar (skip 1) | Simple and accurate — compares current mark price to previous trading day's close. |
+| AD-S21-4 | Google News URL construction (no backend) | Zero API cost, no rate limits, no key needed. 90-day window + quoted company name gives relevant results. |
 
 ---
 
@@ -115,7 +127,8 @@ See `KNOWN-LIMITATIONS.md` for the current list (KL-4 through KL-6).
 11. ~~Advisor 83-instrument tuning~~ — Completed (Session 17)
 12. ~~Visual UAT fixes~~ — Completed (Session 18)
 13. ~~Advisor context window management~~ — Completed (Session 19, fixed Session 20)
-14. **Responsive refinements** — Deferred (user on desktop)
+14. ~~IAT remediation~~ — Completed (Session 21)
+15. **Responsive refinements** — Deferred (user on desktop)
 
 ---
 
