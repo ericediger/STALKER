@@ -47,6 +47,10 @@ export interface HoldingDetail {
   unrealizedPnl: string;
   unrealizedPnlPct: string;
   realizedPnl: string;
+  allocation: string;
+  firstBuyDate: string | null;
+  dayChange: string | null;
+  dayChangePct: string | null;
   lots: HoldingLot[];
   realizedTrades: RealizedTrade[];
   transactions: HoldingTransaction[];

@@ -10,6 +10,7 @@ import { CandlestickChart } from "@/components/holding-detail/CandlestickChart";
 import { LotsTable } from "@/components/holding-detail/LotsTable";
 import { HoldingTransactions } from "@/components/holding-detail/HoldingTransactions";
 import { UnpricedWarning } from "@/components/holding-detail/UnpricedWarning";
+import { LatestNews } from "@/components/holding-detail/LatestNews";
 import { TransactionFormModal } from "@/components/transactions/TransactionFormModal";
 import { DeleteConfirmation } from "@/components/transactions/DeleteConfirmation";
 import { Modal } from "@/components/ui/Modal";
@@ -138,6 +139,9 @@ export default function HoldingDetailPage() {
 
       {/* Position summary */}
       <PositionSummary detail={data} />
+
+      {/* News link */}
+      <LatestNews name={data.name} />
 
       {/* Price chart */}
       <CandlestickChart symbol={data.symbol} transactions={data.transactions} />

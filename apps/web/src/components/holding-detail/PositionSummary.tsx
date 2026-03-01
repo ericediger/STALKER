@@ -3,6 +3,7 @@ import {
   formatCurrency,
   formatPercent,
   formatQuantity,
+  formatMonthYear,
   formatRelativeTime,
 } from "@/lib/format";
 import { ValueChange } from "@/components/ui/ValueChange";
@@ -112,6 +113,51 @@ export function PositionSummary({ detail }: PositionSummaryProps) {
             {detail.latestQuote
               ? formatRelativeTime(detail.latestQuote.asOf)
               : "\u2014"}
+          </span>
+        </Metric>
+
+        {/* Row 3 */}
+        <Metric label="Allocation">
+          <span className="font-mono tabular-nums">
+            {formatPercent(detail.allocation)}
+          </span>
+        </Metric>
+
+        <Metric label="First Buy">
+          <span className="text-base text-text-secondary">
+            {detail.firstBuyDate
+              ? formatMonthYear(detail.firstBuyDate)
+              : "\u2014"}
+          </span>
+        </Metric>
+
+        <Metric label="Day Change">
+          {detail.dayChange != null ? (
+            <span className="flex items-center gap-2">
+              <ValueChange value={detail.dayChange} format="currency" />
+              <ValueChange
+                value={detail.dayChangePct ?? "0"}
+                format="percent"
+                className="text-sm"
+              />
+            </span>
+          ) : (
+            <span className="font-mono tabular-nums text-text-tertiary">
+              {"\u2014"}
+            </span>
+          )}
+        </Metric>
+
+        <Metric label="Source">
+          <span
+            className={cn(
+              "text-base",
+              detail.latestQuote?.provider === "price-history"
+                ? "text-accent-warning"
+                : "text-text-secondary",
+            )}
+          >
+            {detail.latestQuote?.provider ?? "\u2014"}
           </span>
         </Metric>
       </div>

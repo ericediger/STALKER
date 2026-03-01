@@ -59,7 +59,58 @@ export async function GET(
       orderBy: { fetchedAt: 'desc' },
     });
 
-    const markPrice = latestQuote ? toDecimal(latestQuote.price.toString()) : ZERO;
+    // Phase 1: Fall back to latest PriceBar close when no LatestQuote exists
+    let markPrice = ZERO;
+    let quoteResponse: {
+      price: string;
+      asOf: string;
+      fetchedAt: string;
+      provider: string;
+    } | null = null;
+
+    if (latestQuote) {
+      markPrice = toDecimal(latestQuote.price.toString());
+      quoteResponse = {
+        price: latestQuote.price.toString(),
+        asOf: latestQuote.asOf.toISOString(),
+        fetchedAt: latestQuote.fetchedAt.toISOString(),
+        provider: latestQuote.provider,
+      };
+    } else {
+      // No live quote — fall back to most recent daily PriceBar
+      const fallbackBar = await prisma.priceBar.findFirst({
+        where: { instrumentId: instrument.id, resolution: '1D' },
+        orderBy: { date: 'desc' },
+      });
+      if (fallbackBar) {
+        markPrice = toDecimal(fallbackBar.close.toString());
+        quoteResponse = {
+          price: fallbackBar.close.toString(),
+          asOf: new Date(fallbackBar.date + 'T16:00:00Z').toISOString(),
+          fetchedAt: new Date(fallbackBar.date + 'T16:00:00Z').toISOString(),
+          provider: 'price-history',
+        };
+      }
+    }
+
+    // Phase 4: Compute allocation, firstBuyDate, dayChange
+    const [latestSnapshot, firstBuyTx, prevBar] = await Promise.all([
+      prisma.portfolioValueSnapshot.findFirst({
+        orderBy: { date: 'desc' },
+        select: { totalValue: true },
+      }),
+      prisma.transaction.findFirst({
+        where: { instrumentId: instrument.id, type: 'BUY' },
+        orderBy: { tradeAt: 'asc' },
+        select: { tradeAt: true },
+      }),
+      // Get second-most-recent PriceBar for day change calculation
+      prisma.priceBar.findFirst({
+        where: { instrumentId: instrument.id, resolution: '1D' },
+        orderBy: { date: 'desc' },
+        skip: 1,
+      }),
+    ]);
 
     // Compute unrealized PnL per lot
     const unrealized = lots.length > 0 && !markPrice.isZero()
@@ -74,6 +125,26 @@ export async function GET(
     const totalCostBasis = lots.reduce((sum, lot) => sum.plus(lot.costBasisRemaining), ZERO);
     const marketValue = totalQty.times(markPrice);
 
+    // Compute allocation %
+    const totalPortfolioValue = latestSnapshot
+      ? toDecimal(latestSnapshot.totalValue.toString())
+      : ZERO;
+    const allocation = totalPortfolioValue.isZero()
+      ? ZERO
+      : marketValue.dividedBy(totalPortfolioValue).times(100);
+
+    // Compute day change from previous bar close
+    let dayChange: string | null = null;
+    let dayChangePct: string | null = null;
+    if (prevBar && !markPrice.isZero()) {
+      const prevClose = toDecimal(prevBar.close.toString());
+      if (!prevClose.isZero()) {
+        const change = markPrice.minus(prevClose);
+        dayChange = change.toString();
+        dayChangePct = change.dividedBy(prevClose).times(100).toFixed(2);
+      }
+    }
+
     return Response.json({
       symbol: instrument.symbol,
       name: instrument.name,
@@ -87,6 +158,10 @@ export async function GET(
         ? '0'
         : unrealized.totalUnrealized.dividedBy(totalCostBasis).times(100).toFixed(2),
       realizedPnl: realizedPnl.toString(),
+      allocation: allocation.toFixed(2),
+      firstBuyDate: firstBuyTx ? firstBuyTx.tradeAt.toISOString() : null,
+      dayChange,
+      dayChangePct,
       lots: lots.map((lot) => ({
         openedAt: lot.openedAt.toISOString(),
         originalQty: lot.originalQty.toString(),
@@ -111,18 +186,11 @@ export async function GET(
         tradeAt: tx.tradeAt.toISOString(),
         notes: tx.notes,
       })),
-      latestQuote: latestQuote
-        ? {
-            price: latestQuote.price.toString(),
-            asOf: latestQuote.asOf.toISOString(),
-            fetchedAt: latestQuote.fetchedAt.toISOString(),
-            provider: latestQuote.provider,
-          }
-        : null,
+      latestQuote: quoteResponse,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`GET /api/portfolio/holdings/[symbol] error for "${symbol}":`, error);
+    console.error('GET /api/portfolio/holdings/[symbol] error:', error);
     return apiError(500, 'INTERNAL_ERROR', message);
   }
 }

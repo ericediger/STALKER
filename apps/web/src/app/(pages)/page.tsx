@@ -22,10 +22,10 @@ import type { Holding } from "@/lib/holdings-utils";
 export default function PortfolioPage() {
   const router = useRouter();
   const [selectedWindow, setSelectedWindow] = useState<WindowOption>(DEFAULT_WINDOW);
-  const { data: snapshot, isLoading: snapshotLoading } = usePortfolioSnapshot(selectedWindow);
+  const { data: snapshot, isLoading: snapshotLoading, isRebuilding } = usePortfolioSnapshot(selectedWindow);
   const { data: timeseries, isLoading: timeseriesLoading } = usePortfolioTimeseries(selectedWindow);
   const { data: holdings, isLoading: holdingsLoading, refetch: refetchHoldings } = useHoldings();
-  const { data: instruments, isLoading: instrumentsLoading } = useInstruments();
+  const { data: instruments, isLoading: instrumentsLoading, refetch: refetchInstruments } = useInstruments();
   const [showAddInstrument, setShowAddInstrument] = useState(false);
 
   const handleRowClick = useCallback((symbol: string) => {
@@ -33,8 +33,9 @@ export default function PortfolioPage() {
   }, [router]);
 
   const handleInstrumentAdded = useCallback(() => {
-    window.location.reload();
-  }, []);
+    refetchHoldings();
+    refetchInstruments();
+  }, [refetchHoldings, refetchInstruments]);
 
   const handleDeleteSuccess = useCallback(() => {
     refetchHoldings();
@@ -94,6 +95,16 @@ export default function PortfolioPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCards snapshot={snapshot} isLoading={snapshotLoading} />
       </div>
+
+      {isRebuilding && (
+        <div className="flex items-center gap-2 text-sm text-text-tertiary animate-pulse">
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Rebuilding portfolio snapshots...
+        </div>
+      )}
 
       {holdingsLoading || instrumentsLoading ? (
         <Skeleton height="200px" className="w-full rounded-lg" />
