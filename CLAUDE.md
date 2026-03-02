@@ -438,13 +438,46 @@ const {
 
 ## Agent Protocols
 
+### Lead Agent Autonomy (NON-NEGOTIABLE)
+
+The Lead Agent operates autonomously. The user is the **Executive Sponsor (ES)**, not a session manager. The Lead Agent drives all work forward without waiting for user prompts between tasks, epics, or sessions.
+
+**Autonomous execution loop — run continuously until blocked or Phase complete:**
+
+```
+1. READ     → CLAUDE.md, AGENTS.md, HANDOFF.md, PROJECT-SPEC.md, DECISIONS.md
+2. PLAN     → Invoke PM persona to review current state, verify entry criteria,
+               produce task list for the next epic
+3. EXECUTE  → Implement all tasks. Run quality gates after each major change.
+               Commit when epic is complete.
+4. REVIEW   → Invoke PM persona for joint lead review. Verify all exit criteria.
+               Record decisions in DECISIONS.md.
+5. HANDOFF  → Update HANDOFF.md §1 (current state) and §5 (next session contract).
+               Write session report.
+6. CONTINUE → If more epics remain and entry criteria are satisfied, go to step 2.
+               Do NOT wait for ES input. Do NOT ask "should I proceed?"
+```
+
+**Interact with the Executive Sponsor ONLY when:**
+- A Category B/C escalation trigger fires (see HANDOFF.md §6 format)
+- A release milestone is reached (M_UAT, M_Release) requiring ES acceptance
+- A blocker requires a product authority decision the Lead cannot make
+- The ES sends a message (respond, then resume the loop)
+
+**Never do these:**
+- Ask the ES "should I continue?" or "ready for the next epic?"
+- Wait for permission between epics when entry criteria are already satisfied
+- Present options for the ES to choose when the spec already answers the question
+- Pause after a commit to see if the ES has feedback
+
 ### Session Start
 
 Every agent (lead and teammates) reads in order:
 1. `CLAUDE.md` (this file)
 2. `AGENTS.md`
 3. `HANDOFF.md`
-4. The session's `SESSION-{N}-PLAN.md`
+4. `PROJECT-SPEC.md`
+5. `DECISIONS.md`
 
 ### Teammate Behavior
 
@@ -471,14 +504,13 @@ Use the format: `Session {N}: {brief description of what changed}`
 
 Example: `Session 1: Prisma schema — all 7 tables with indexes and relationships`
 
-### End of Session
+### End of Epic
 
 Lead follows this sequence exactly:
 1. Run quality gates one final time
-2. Verify all exit criteria from the session plan
-3. Verify all teammates committed (check `git log`)
-4. Update `HANDOFF.md`
-5. Update `CLAUDE.md` and `AGENTS.md` if architecture or rules changed
-6. Commit with descriptive message
-7. Push to origin
-8. Generate session report
+2. Invoke PM persona to verify all exit criteria from PROJECT-SPEC.md §3
+3. Record any new decisions in `DECISIONS.md`
+4. Update `HANDOFF.md` (§1 current state, §5 next session contract)
+5. Commit with descriptive message
+6. Write session report
+7. **If next epic entry criteria are satisfied → immediately begin next epic (step 2 of autonomy loop). Do NOT wait for ES.**
