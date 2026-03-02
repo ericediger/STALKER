@@ -3,15 +3,18 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import {
   CandlestickSeries,
+  AreaSeries,
   createSeriesMarkers,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type SeriesType,
   type Time,
+  type AreaData,
 } from "lightweight-charts";
 import { useChart } from "@/lib/hooks/useChart";
 import { useMarketHistory } from "@/lib/hooks/useMarketHistory";
 import { toCandlestickData } from "@/lib/chart-candlestick-utils";
+import type { PriceBar } from "@/lib/chart-candlestick-utils";
 import {
   transactionsToMarkers,
   type TransactionForMarker,
@@ -54,12 +57,29 @@ function getStartDate(range: ChartRange): string | undefined {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Convert API PriceBar objects to TradingView AreaData (close price only).
+ * Used for CRYPTO instruments where OHLC data is not available (AD-S22-3).
+ * NOTE: This is an approved location for Number() on financial values (AD-S6c exception).
+ */
+function toAreaData(bars: PriceBar[]): AreaData<Time>[] {
+  if (!bars || bars.length === 0) return [];
+  return bars
+    .map((bar) => {
+      const value = Number(bar.close);
+      if (isNaN(value)) return null;
+      return { time: bar.date as Time, value };
+    })
+    .filter((item): item is AreaData<Time> => item !== null);
+}
+
 interface CandlestickChartProps {
   symbol: string;
   transactions?: TransactionForMarker[];
+  instrumentType?: string;
 }
 
-export function CandlestickChart({ symbol, transactions }: CandlestickChartProps) {
+export function CandlestickChart({ symbol, transactions, instrumentType }: CandlestickChartProps) {
   const [range, setRange] = useState<ChartRange>("3M");
   const containerRef = useRef<HTMLDivElement>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
@@ -73,35 +93,51 @@ export function CandlestickChart({ symbol, transactions }: CandlestickChartProps
     options: { height: CHART_HEIGHT },
   });
 
-  // Attach candlestick series once chart is ready
+  const isCrypto = instrumentType === 'CRYPTO';
+
+  // Attach series once chart is ready — candlestick for equities, area for crypto (AD-S22-3)
   useEffect(() => {
     if (!chart) return;
     if (seriesRef.current) return;
 
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
-      borderVisible: false,
-    });
+    const series = isCrypto
+      ? chart.addSeries(AreaSeries, {
+          lineColor: '#6366f1',
+          topColor: 'rgba(99, 102, 241, 0.4)',
+          bottomColor: 'rgba(99, 102, 241, 0.04)',
+          lineWidth: 2,
+        })
+      : chart.addSeries(CandlestickSeries, {
+          upColor: "#22c55e",
+          downColor: "#ef4444",
+          wickUpColor: "#22c55e",
+          wickDownColor: "#ef4444",
+          borderVisible: false,
+        });
     seriesRef.current = series;
 
     return () => {
       seriesRef.current = null;
     };
-  }, [chart]);
+  }, [chart, isCrypto]);
 
   // Update data when bars change
   useEffect(() => {
     if (!seriesRef.current) return;
-    const chartData = toCandlestickData(bars);
-    seriesRef.current.setData(chartData);
-
-    if (chart && chartData.length > 0) {
-      chart.timeScale().fitContent();
+    if (isCrypto) {
+      const areaData = toAreaData(bars);
+      seriesRef.current.setData(areaData);
+      if (chart && areaData.length > 0) {
+        chart.timeScale().fitContent();
+      }
+    } else {
+      const chartData = toCandlestickData(bars);
+      seriesRef.current.setData(chartData);
+      if (chart && chartData.length > 0) {
+        chart.timeScale().fitContent();
+      }
     }
-  }, [bars, chart]);
+  }, [bars, chart, isCrypto]);
 
   // Update transaction markers when transactions or series change
   useEffect(() => {

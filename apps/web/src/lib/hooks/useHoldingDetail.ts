@@ -39,6 +39,7 @@ export interface LatestQuote {
 export interface HoldingDetail {
   symbol: string;
   name: string;
+  instrumentType: string;
   instrumentId: string;
   totalQty: string;
   markPrice: string;

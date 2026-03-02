@@ -97,7 +97,7 @@ export function PositionSummary({ detail }: PositionSummaryProps) {
           )}
         </Metric>
 
-        <Metric label="Day Change">
+        <Metric label={detail.instrumentType === 'CRYPTO' ? '24h Change' : 'Day Change'}>
           {detail.dayChange != null ? (
             <span className="flex items-center gap-2">
               <ValueChange value={detail.dayChange} format="currency" />

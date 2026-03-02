@@ -100,6 +100,7 @@ function PortfolioPageContent() {
           symbol: inst.symbol,
           name: inst.name,
           instrumentId: inst.id,
+          instrumentType: inst.type,
           qty: "0",
           price: "0",
           value: "0",

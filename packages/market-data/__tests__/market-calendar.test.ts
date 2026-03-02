@@ -167,6 +167,34 @@ describe('getNextTradingDay', () => {
   });
 });
 
+describe('CRYPTO exchange (AD-S22-2)', () => {
+  it('isTradingDay returns true on weekdays', () => {
+    expect(isTradingDay(new Date('2025-01-06T12:00:00Z'), 'CRYPTO')).toBe(true);
+  });
+
+  it('isTradingDay returns true on Saturday', () => {
+    expect(isTradingDay(new Date('2025-01-11T12:00:00Z'), 'CRYPTO')).toBe(true);
+  });
+
+  it('isTradingDay returns true on Sunday', () => {
+    expect(isTradingDay(new Date('2025-01-12T12:00:00Z'), 'CRYPTO')).toBe(true);
+  });
+
+  it('isMarketOpen returns true at any time', () => {
+    // Midnight UTC on a Saturday
+    expect(isMarketOpen(new Date('2025-01-11T00:00:00Z'), 'CRYPTO')).toBe(true);
+    // 3 AM UTC on a Sunday
+    expect(isMarketOpen(new Date('2025-01-12T03:00:00Z'), 'CRYPTO')).toBe(true);
+    // Noon on a weekday
+    expect(isMarketOpen(new Date('2025-01-06T12:00:00Z'), 'CRYPTO')).toBe(true);
+  });
+
+  it('isTradingDay returns true on NYSE holidays', () => {
+    // 2025-01-01 is New Year's Day — NYSE holiday but CRYPTO trades
+    expect(isTradingDay(new Date('2025-01-01T12:00:00Z'), 'CRYPTO')).toBe(true);
+  });
+});
+
 describe('PF-4: DST boundary tests', () => {
   describe('2026 Spring Forward (March 8)', () => {
     it('getPriorTradingDay(Monday March 9) → Friday March 6', () => {

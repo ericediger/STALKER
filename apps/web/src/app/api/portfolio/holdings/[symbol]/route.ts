@@ -148,6 +148,7 @@ export async function GET(
     return Response.json({
       symbol: instrument.symbol,
       name: instrument.name,
+      instrumentType: instrument.type,
       instrumentId: instrument.id,
       totalQty: totalQty.toString(),
       markPrice: markPrice.toString(),

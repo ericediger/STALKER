@@ -4,7 +4,7 @@ import type { Decimal } from 'decimal.js';
 export const TransactionType = { BUY: 'BUY', SELL: 'SELL' } as const;
 export type TransactionType = (typeof TransactionType)[keyof typeof TransactionType];
 
-export const InstrumentType = { STOCK: 'STOCK', ETF: 'ETF', FUND: 'FUND' } as const;
+export const InstrumentType = { STOCK: 'STOCK', ETF: 'ETF', FUND: 'FUND', CRYPTO: 'CRYPTO' } as const;
 export type InstrumentType = (typeof InstrumentType)[keyof typeof InstrumentType];
 
 export const Resolution = { DAY: '1D' } as const;

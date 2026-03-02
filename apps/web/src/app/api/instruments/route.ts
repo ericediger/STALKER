@@ -48,7 +48,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       });
     }
 
-    const { symbol, name, type, exchange } = parsed.data;
+    const { symbol, name, type, exchange, providerSymbol } = parsed.data;
 
     // Check for duplicate symbol
     const existing = await prisma.instrument.findUnique({
@@ -58,14 +58,15 @@ export async function POST(request: NextRequest): Promise<Response> {
       return apiError(409, 'CONFLICT', `Instrument with symbol '${symbol}' already exists`);
     }
 
-    // Map exchange to timezone
-    const exchangeTz = EXCHANGE_TIMEZONE_MAP[exchange] ?? DEFAULT_TIMEZONE;
+    // Crypto instruments use fixed exchange and timezone (AD-S22-2)
+    const isCrypto = type === 'CRYPTO';
+    const effectiveExchange = isCrypto ? 'CRYPTO' : exchange;
+    const exchangeTz = EXCHANGE_TIMEZONE_MAP[effectiveExchange] ?? DEFAULT_TIMEZONE;
 
-    // Build provider symbol map (FMP uses dots, Tiingo uses hyphens)
-    const providerSymbolMap: Record<string, string> = {
-      fmp: symbol,
-      tiingo: buildTiingoSymbol(symbol),
-    };
+    // Build provider symbol map — crypto uses coingecko ID, equities use FMP + Tiingo
+    const providerSymbolMap: Record<string, string> = isCrypto
+      ? { coingecko: providerSymbol ?? symbol.toLowerCase() }
+      : { fmp: symbol, tiingo: buildTiingoSymbol(symbol) };
 
     const id = generateUlid();
 
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         symbol,
         name,
         type,
-        exchange,
+        exchange: effectiveExchange,
         exchangeTz,
         providerSymbolMap: JSON.stringify(providerSymbolMap),
         firstBarDate: null,

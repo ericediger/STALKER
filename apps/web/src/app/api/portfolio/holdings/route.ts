@@ -76,6 +76,7 @@ export async function GET(): Promise<Response> {
         symbol,
         name: inst?.name ?? symbol,
         instrumentId: inst?.id ?? null,
+        instrumentType: inst?.type ?? 'STOCK',
         qty: entry.qty.toString(),
         price: latestPrice ? latestPrice.toString() : entry.value.dividedBy(entry.qty).toString(),
         value: currentValue.toString(),

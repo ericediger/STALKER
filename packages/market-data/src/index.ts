@@ -12,6 +12,7 @@ export type { RateLimiterConfig } from './rate-limiter.js';
 export { FmpProvider } from './providers/fmp.js';
 export { TiingoProvider } from './providers/tiingo.js';
 export { AlphaVantageProvider } from './providers/alpha-vantage.js';
+export { CoinGeckoProvider } from './providers/coingecko.js';
 /** @deprecated Replaced by TiingoProvider in Session 11. Kept for reference only. */
 export { StooqProvider, parseStooqCsv } from './providers/stooq.js';
 

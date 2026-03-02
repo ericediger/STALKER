@@ -18,6 +18,7 @@ function buildTiingoSymbol(symbol: string): string {
 function mapExchange(exchange: string | undefined): string {
   if (!exchange) return 'NYSE';
   const upper = exchange.toUpperCase();
+  if (upper === 'CRYPTO') return 'CRYPTO';
   if (upper.includes('NASDAQ') || upper === 'NMS' || upper === 'NGS' || upper === 'NAS') return 'NASDAQ';
   if (upper.includes('NYSE') || upper === 'NYQ' || upper === 'PCX' || upper === 'AMEX' || upper === 'ARCA' || upper === 'BATS') return 'NYSE';
   if (upper.includes('CBOE') || upper === 'BZX') return 'CBOE';
@@ -27,6 +28,7 @@ function mapExchange(exchange: string | undefined): string {
 function mapType(type: string | undefined): string {
   if (!type) return 'STOCK';
   const upper = type.toUpperCase();
+  if (upper === 'CRYPTO') return 'CRYPTO';
   if (upper === 'ETF' || upper.includes('ETF')) return 'ETF';
   if (upper === 'FUND' || upper.includes('FUND')) return 'FUND';
   return 'STOCK';

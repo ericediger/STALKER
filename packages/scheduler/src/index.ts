@@ -5,6 +5,7 @@ import {
   FmpProvider,
   TiingoProvider,
   AlphaVantageProvider,
+  CoinGeckoProvider,
 } from '@stalker/market-data';
 import { loadConfig } from './config.js';
 import { checkBudget } from './budget.js';
@@ -64,11 +65,13 @@ async function main(): Promise<void> {
   const fmpProvider = new FmpProvider();
   const tiingoProvider = new TiingoProvider();
   const alphaVantageProvider = new AlphaVantageProvider();
+  const coinGeckoProvider = new CoinGeckoProvider();
 
   const marketDataService = new MarketDataService({
     primaryProvider: fmpProvider,
     secondaryProvider: alphaVantageProvider,
     historyProvider: tiingoProvider,
+    cryptoProvider: coinGeckoProvider,
     prisma,
   });
 
@@ -93,7 +96,8 @@ async function main(): Promise<void> {
 
   console.log(`[scheduler] ${instruments.length} instruments tracked`);
   console.log(`[scheduler] ${budgetResult.message}`);
-  console.log(`[scheduler] Quote provider chain: Tiingo IEX (batch) → FMP (single) → AV (single)`);
+  console.log(`[scheduler] Equity chain: Tiingo IEX (batch) → FMP (single) → AV (single)`);
+  console.log(`[scheduler] Crypto chain: CoinGecko (batch, 24/7)`);
 
   // With batch polling, budget should always be OK.
   // Keep the configured interval (no auto-adjustment needed).

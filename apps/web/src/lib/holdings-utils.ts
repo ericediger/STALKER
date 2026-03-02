@@ -19,6 +19,7 @@ export interface Holding {
   symbol: string;
   name: string;
   instrumentId: string;
+  instrumentType: string;
   qty: string;
   price: string;
   value: string;

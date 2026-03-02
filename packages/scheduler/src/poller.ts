@@ -10,6 +10,7 @@ import { isMarketOpen } from '@stalker/market-data';
 export interface MarketDataServiceLike {
   getQuote(instrument: Instrument): Promise<Quote | null>;
   pollAllQuotes?(instruments: Instrument[]): Promise<PollResult>;
+  pollCryptoQuotes?(instruments: Instrument[]): Promise<PollResult>;
 }
 
 /**
@@ -80,8 +81,18 @@ export class Poller {
           continue;
         }
 
-        // Determine which instruments have their market open right now
-        const openInstruments = instruments.filter((inst) =>
+        // Partition instruments: equities vs crypto (AD-S22-4)
+        const equityInstruments = instruments.filter((inst) => inst.type !== 'CRYPTO');
+        const cryptoInstruments = instruments.filter((inst) => inst.type === 'CRYPTO');
+
+        // --- Crypto path: always poll (24/7 markets) ---
+        if (cryptoInstruments.length > 0) {
+          const cryptoResult = await this.pollCryptoInstruments(cryptoInstruments);
+          this.logCycleResult(cryptoResult, cryptoInstruments.length, 'crypto');
+        }
+
+        // --- Equity path: NYSE-gated (existing behavior) ---
+        const openInstruments = equityInstruments.filter((inst) =>
           isMarketOpen(now, inst.exchange),
         );
         const anyMarketOpen = openInstruments.length > 0;
@@ -89,7 +100,7 @@ export class Poller {
         if (anyMarketOpen) {
           // Market is open — poll instruments with open markets
           const result = await this.pollInstruments(openInstruments);
-          this.logCycleResult(result, openInstruments.length);
+          this.logCycleResult(result, openInstruments.length, 'equity');
           this.postCloseFetchDone = false;
           this.wasMarketOpen = true;
         } else if (this.wasMarketOpen && !this.postCloseFetchDone) {
@@ -101,10 +112,10 @@ export class Poller {
 
           if (this.shutdownRequested) break;
 
-          console.log(`[scheduler] Running post-close fetch for ${instruments.length} instruments...`);
-          const result = await this.pollInstruments(instruments);
-          this.logCycleResult(result, instruments.length);
-          console.log(`[scheduler] Post-close fetch complete for ${instruments.length} instruments.`);
+          console.log(`[scheduler] Running post-close fetch for ${equityInstruments.length} equity instruments...`);
+          const result = await this.pollInstruments(equityInstruments);
+          this.logCycleResult(result, equityInstruments.length, 'equity');
+          console.log(`[scheduler] Post-close fetch complete for ${equityInstruments.length} equity instruments.`);
           this.postCloseFetchDone = true;
           this.wasMarketOpen = false;
         } else {
@@ -213,6 +224,53 @@ export class Poller {
   }
 
   /**
+   * Poll crypto instruments using the service's crypto batch method.
+   * Falls back to per-instrument polling if batch is not available.
+   */
+  private async pollCryptoInstruments(instruments: Instrument[]): Promise<PollCycleResult> {
+    const startTime = Date.now();
+
+    if (typeof this.marketDataService.pollCryptoQuotes === 'function') {
+      try {
+        const result = await this.marketDataService.pollCryptoQuotes(instruments);
+        return {
+          polled: instruments.length,
+          succeeded: result.updated,
+          failed: result.failed,
+          durationMs: Date.now() - startTime,
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[scheduler] Crypto batch poll failed: ${errorMessage}`);
+      }
+    }
+
+    // Fallback: per-instrument
+    let succeeded = 0;
+    let failed = 0;
+    for (const instrument of instruments) {
+      if (this.shutdownRequested) break;
+      try {
+        const quote = await this.marketDataService.getQuote(instrument);
+        if (quote !== null) {
+          succeeded++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    return {
+      polled: instruments.length,
+      succeeded,
+      failed,
+      durationMs: Date.now() - startTime,
+    };
+  }
+
+  /**
    * Cancellable sleep. Stores the timer reference so stop() can cancel it.
    */
   private sleep(ms: number): Promise<void> {
@@ -226,9 +284,10 @@ export class Poller {
     });
   }
 
-  private logCycleResult(result: PollCycleResult, total: number): void {
+  private logCycleResult(result: PollCycleResult, total: number, label?: string): void {
+    const prefix = label ? `[scheduler:${label}]` : '[scheduler]';
     console.log(
-      `[scheduler] Poll cycle: ${result.succeeded}/${total} succeeded, ` +
+      `${prefix} Poll cycle: ${result.succeeded}/${total} succeeded, ` +
       `${result.failed} failed, ${result.durationMs}ms`,
     );
   }

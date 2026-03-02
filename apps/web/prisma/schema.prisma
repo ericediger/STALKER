@@ -11,7 +11,7 @@ model Instrument {
   id               String   @id
   symbol           String   @unique
   name             String
-  type             String   // STOCK, ETF, FUND
+  type             String   // STOCK, ETF, FUND, CRYPTO
   currency         String   @default("USD")
   exchange         String
   exchangeTz       String   @default("America/New_York")

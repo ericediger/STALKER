@@ -4,6 +4,7 @@ export const EXCHANGE_TIMEZONE_MAP: Record<string, string> = {
   AMEX: 'America/New_York',
   LSE: 'Europe/London',
   TSX: 'America/Toronto',
+  CRYPTO: 'UTC',
 };
 
 export const DEFAULT_TIMEZONE = 'America/New_York';

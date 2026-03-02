@@ -24,6 +24,7 @@ const TYPE_OPTIONS = [
   { label: "Stock", value: "STOCK" },
   { label: "ETF", value: "ETF" },
   { label: "Fund", value: "FUND" },
+  { label: "Crypto", value: "CRYPTO" },
 ];
 
 function mapExchange(exchange: string): string {
@@ -37,6 +38,7 @@ function mapExchange(exchange: string): string {
 function mapType(type: string | undefined): string {
   if (!type) return "STOCK";
   const upper = type.toUpperCase();
+  if (upper === "CRYPTO") return "CRYPTO";
   if (upper === "ETF" || upper.includes("ETF")) return "ETF";
   if (upper === "FUND" || upper.includes("FUND")) return "FUND";
   return "STOCK";
@@ -64,6 +66,7 @@ export function AddInstrumentModal({
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedFromSearch, setSelectedFromSearch] = useState(false);
+  const [providerSymbol, setProviderSymbol] = useState<string | undefined>(undefined);
   const [addedSymbol, setAddedSymbol] = useState<string | null>(null);
 
   // Initial purchase fields (optional)
@@ -85,6 +88,7 @@ export function AddInstrumentModal({
     setExchange("NYSE");
     setErrors({});
     setSelectedFromSearch(false);
+    setProviderSymbol(undefined);
     setBuyQty("");
     setBuyPrice("");
     setBuyDate(todayDateString());
@@ -101,10 +105,12 @@ export function AddInstrumentModal({
   }, [resetForm, onClose]);
 
   const handleSearchSelect = useCallback((result: SearchResult) => {
+    const isCrypto = result.type === 'CRYPTO' || result.exchange === 'CRYPTO';
     setSymbol(result.symbol);
     setName(result.name);
-    setExchange(mapExchange(result.exchange));
-    setType(mapType(result.type));
+    setExchange(isCrypto ? 'CRYPTO' : mapExchange(result.exchange));
+    setType(isCrypto ? 'CRYPTO' : mapType(result.type));
+    setProviderSymbol(result.providerSymbol);
     setSelectedFromSearch(true);
     setErrors({});
     // Reset buy price auto-fill for new instrument
@@ -181,7 +187,8 @@ export function AddInstrumentModal({
             symbol: symbol.trim().toUpperCase(),
             name: name.trim(),
             type,
-            exchange,
+            exchange: type === 'CRYPTO' ? 'CRYPTO' : exchange,
+            ...(providerSymbol ? { providerSymbol } : {}),
           }),
         });
 
@@ -243,7 +250,7 @@ export function AddInstrumentModal({
         setSubmitting(false);
       }
     },
-    [symbol, name, type, exchange, hasBuyData, buyQty, buyPrice, buyDate, buyFees, toast, handleClose, onSuccess],
+    [symbol, name, type, exchange, providerSymbol, hasBuyData, buyQty, buyPrice, buyDate, buyFees, toast, handleClose, onSuccess],
   );
 
   const handleAddAnother = useCallback(() => {
@@ -339,14 +346,27 @@ export function AddInstrumentModal({
                 label="Type"
                 options={TYPE_OPTIONS}
                 value={type}
-                onChange={setType}
+                onChange={(val) => {
+                  setType(val);
+                  if (val === 'CRYPTO') setExchange('CRYPTO');
+                }}
               />
-              <Select
-                label="Exchange"
-                options={EXCHANGE_OPTIONS}
-                value={exchange}
-                onChange={setExchange}
-              />
+              {type === 'CRYPTO' ? (
+                <Input
+                  label="Exchange"
+                  type="text"
+                  value="CRYPTO"
+                  disabled
+                  onChange={() => {}}
+                />
+              ) : (
+                <Select
+                  label="Exchange"
+                  options={EXCHANGE_OPTIONS}
+                  value={exchange}
+                  onChange={setExchange}
+                />
+              )}
             </div>
           </div>
         </div>

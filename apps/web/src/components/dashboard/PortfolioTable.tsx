@@ -30,7 +30,7 @@ interface ColumnDef {
   sortable: boolean;
 }
 
-type InstrumentTypeFilter = "ALL" | "STOCK" | "ETF" | "FUND";
+type InstrumentTypeFilter = "ALL" | "STOCK" | "ETF" | "FUND" | "CRYPTO";
 
 /* -------------------------------------------------------------------------- */
 /*  Column definitions                                                         */
@@ -201,11 +201,7 @@ export function PortfolioTable({
     }
 
     if (typeFilter !== "ALL") {
-      // We don't have instrument type in the Holding interface directly,
-      // so we match by common naming patterns. This is a lightweight filter.
-      // In practice, instrument type should come from the API.
-      // For now, filter is a no-op for type since we don't have that data in holdings.
-      // We'll leave this as "ALL" only — the dropdown is available for future use.
+      result = result.filter((h) => h.instrumentType === typeFilter);
     }
 
     return result;
@@ -297,6 +293,7 @@ export function PortfolioTable({
           <option value="STOCK">Stock</option>
           <option value="ETF">ETF</option>
           <option value="FUND">Fund</option>
+          <option value="CRYPTO">Crypto</option>
         </select>
         <span className="ml-auto text-text-tertiary text-sm">
           {filteredHoldings.length} holding{filteredHoldings.length !== 1 ? "s" : ""}

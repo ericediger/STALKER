@@ -8,6 +8,7 @@ export interface SearchResult {
   name: string;
   exchange: string;
   type?: string;
+  providerSymbol?: string;
 }
 
 interface SymbolSearchInputProps {
@@ -124,9 +125,9 @@ export function SymbolSearchInput({
       )}
       {displayResults.length > 0 && (
         <div className="bg-bg-tertiary border border-border-primary rounded-md overflow-hidden max-h-60 overflow-y-auto">
-          {displayResults.map((r) => (
+          {displayResults.map((r, idx) => (
             <button
-              key={r.symbol}
+              key={`${r.symbol}-${r.exchange}-${idx}`}
               type="button"
               className="w-full px-3 py-2 text-left hover:bg-bg-secondary transition-colors flex items-center gap-2"
               onClick={() => handleSelect(r)}
@@ -135,9 +136,15 @@ export function SymbolSearchInput({
                 {r.symbol}
               </span>
               <span className="text-sm text-text-secondary truncate">{r.name}</span>
-              <span className="text-xs text-text-tertiary ml-auto whitespace-nowrap">
-                {r.exchange}
-              </span>
+              {r.type === 'CRYPTO' ? (
+                <span className="text-xs bg-bg-tertiary text-text-secondary px-1.5 py-0.5 rounded ml-auto whitespace-nowrap">
+                  Crypto
+                </span>
+              ) : (
+                <span className="text-xs text-text-tertiary ml-auto whitespace-nowrap">
+                  {r.exchange}
+                </span>
+              )}
             </button>
           ))}
           {searchResults.length > MAX_RESULTS && (

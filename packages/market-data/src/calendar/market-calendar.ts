@@ -20,8 +20,12 @@ const NYSE_EXCHANGES = new Set(['NYSE', 'NASDAQ', 'AMEX']);
 /**
  * Returns true if the date falls on a weekday (Mon-Fri) in the exchange's timezone
  * and is not a known NYSE holiday (for US exchanges).
+ * CRYPTO instruments always return true (24/7 markets, AD-S22-2).
  */
 export function isTradingDay(date: Date, exchange: string): boolean {
+  // Crypto markets trade 24/7 — always a trading day
+  if (exchange === 'CRYPTO') return true;
+
   const tz = getTimezone(exchange);
   const zonedDate = toZonedTime(date, tz);
   const dayOfWeek = getDay(zonedDate);
@@ -67,8 +71,12 @@ export function getSessionTimes(date: Date, exchange: string): { open: Date; clo
 
 /**
  * Returns true if `now` falls within market hours on a trading day.
+ * CRYPTO instruments are always considered "open" (24/7 markets, AD-S22-2).
  */
 export function isMarketOpen(now: Date, exchange: string): boolean {
+  // Crypto markets are always open
+  if (exchange === 'CRYPTO') return true;
+
   if (!isTradingDay(now, exchange)) {
     return false;
   }
