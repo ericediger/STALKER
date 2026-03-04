@@ -40,6 +40,26 @@ export async function GET(): Promise<Response> {
       }
     }
 
+    // Build previous close lookup for day change (2nd most recent bar per instrument)
+    // We need both the most recent and 2nd most recent PriceBar per instrument.
+    // Fetch the 2 most recent bars per instrument efficiently.
+    const allInstrumentIds = instruments.map((i) => i.id);
+    const prevCloseByInstrumentId = new Map<string, string>();
+    // Batch query: for each instrument, get the 2nd most recent daily bar's close
+    await Promise.all(
+      allInstrumentIds.map(async (instId) => {
+        const prevBar = await prisma.priceBar.findFirst({
+          where: { instrumentId: instId, resolution: '1D' },
+          orderBy: { date: 'desc' },
+          skip: 1,
+          select: { close: true },
+        });
+        if (prevBar) {
+          prevCloseByInstrumentId.set(instId, prevBar.close.toString());
+        }
+      }),
+    );
+
     // Derive first BUY date per instrument
     const firstBuyRows = await prisma.transaction.groupBy({
       by: ['instrumentId'],
@@ -65,6 +85,8 @@ export async function GET(): Promise<Response> {
       costBasis: string;
       unrealizedPnl: string;
       unrealizedPnlPct: string;
+      dayChange: string | null;
+      dayChangePct: string | null;
       firstBuyDate: string | null;
     }> = [];
 
@@ -86,6 +108,21 @@ export async function GET(): Promise<Response> {
 
       const firstBuyDate = inst ? firstBuyByInstrumentId.get(inst.id) ?? null : null;
 
+      // Compute day change from previous bar close
+      let dayChange: string | null = null;
+      let dayChangePct: string | null = null;
+      if (inst && latestPrice && !latestPrice.isZero()) {
+        const prevCloseStr = prevCloseByInstrumentId.get(inst.id);
+        if (prevCloseStr) {
+          const prevClose = toDecimal(prevCloseStr);
+          if (!prevClose.isZero()) {
+            const change = latestPrice.minus(prevClose);
+            dayChange = change.toString();
+            dayChangePct = change.dividedBy(prevClose).times(100).toFixed(2);
+          }
+        }
+      }
+
       holdingsData.push({
         symbol,
         name: inst?.name ?? symbol,
@@ -97,6 +134,8 @@ export async function GET(): Promise<Response> {
         costBasis: entry.costBasis.toString(),
         unrealizedPnl: unrealizedPnl.toString(),
         unrealizedPnlPct,
+        dayChange,
+        dayChangePct,
         firstBuyDate: firstBuyDate ? firstBuyDate.toISOString() : null,
       });
     }
@@ -113,6 +152,8 @@ export async function GET(): Promise<Response> {
       costBasis: h.costBasis,
       unrealizedPnl: h.unrealizedPnl,
       unrealizedPnlPct: h.unrealizedPnlPct,
+      dayChange: h.dayChange,
+      dayChangePct: h.dayChangePct,
       allocation: computedTotalValue.isZero()
         ? '0'
         : div(h.currentValue, computedTotalValue).times(100).toFixed(2),

@@ -41,6 +41,8 @@ const COLUMNS: ColumnDef[] = [
   { key: "avgCost", label: "Avg Cost", align: "right", sortable: true },
   { key: "costBasis", label: "Cost Basis", align: "right", sortable: true },
   { key: "price", label: "Current Price", align: "right", sortable: true },
+  { key: "dayChange", label: "Day $", align: "right", sortable: true },
+  { key: "dayChangePct", label: "Day %", align: "right", sortable: true },
   { key: "value", label: "Value", align: "right", sortable: true },
   { key: "unrealizedPnl", label: "PnL $", align: "right", sortable: true },
   { key: "unrealizedPnlPct", label: "PnL %", align: "right", sortable: true },
@@ -302,7 +304,7 @@ export function PortfolioTable({
                 <th
                   key={col.key}
                   className={cn(
-                    "text-text-tertiary text-xs font-medium uppercase tracking-wide px-3 py-2",
+                    "text-text-secondary text-xs font-medium uppercase tracking-wide px-3 py-2",
                     col.align === "right" ? "text-right" : "text-left",
                     col.sortable && "cursor-pointer select-none hover:text-text-secondary",
                     col.key === "actions" && "w-10",
@@ -346,6 +348,8 @@ export function PortfolioTable({
               <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary font-semibold text-sm">
                 {formatCurrency(totals.totalCostBasis)}
               </td>
+              <td className="px-3 py-2" />
+              <td className="px-3 py-2" />
               <td className="px-3 py-2" />
               <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary font-semibold text-sm">
                 {formatCurrency(totals.totalValue)}
@@ -447,6 +451,12 @@ function PortfolioTableRow({
       </td>
       <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
         {formatCurrency(holding.price)}
+      </td>
+      <td className="px-3 py-2 text-right text-sm">
+        {holding.dayChange ? <ValueChange value={holding.dayChange} format="currency" /> : "\u2014"}
+      </td>
+      <td className="px-3 py-2 text-right text-sm">
+        {holding.dayChangePct ? <ValueChange value={holding.dayChangePct} format="percent" /> : "\u2014"}
       </td>
       <td className="px-3 py-2 text-right font-mono tabular-nums text-text-primary text-sm">
         {formatCurrency(holding.value)}

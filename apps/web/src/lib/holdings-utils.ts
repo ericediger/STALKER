@@ -7,6 +7,8 @@ export type SortColumn =
   | "qty"
   | "avgCost"
   | "price"
+  | "dayChange"
+  | "dayChangePct"
   | "value"
   | "costBasis"
   | "unrealizedPnl"
@@ -26,6 +28,8 @@ export interface Holding {
   costBasis: string;
   unrealizedPnl: string;
   unrealizedPnlPct: string;
+  dayChange: string | null;
+  dayChangePct: string | null;
   allocation: string;
   firstBuyDate: string | null;
 }
@@ -69,6 +73,14 @@ export function sortHoldings(
     if (column === "avgCost") {
       const aVal = avgCostPerShare(a.costBasis, a.qty);
       const bVal = avgCostPerShare(b.costBasis, b.qty);
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return 1;
+      if (bVal === null) return -1;
+      return new Decimal(aVal).cmp(new Decimal(bVal));
+    }
+    if (column === "dayChange" || column === "dayChangePct") {
+      const aVal = a[column];
+      const bVal = b[column];
       if (aVal === null && bVal === null) return 0;
       if (aVal === null) return 1;
       if (bVal === null) return -1;

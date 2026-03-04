@@ -100,9 +100,36 @@ function buildResponseFromSnapshots(
   instruments: Instrument[],
   startDateStr: string,
   endDateStr: string,
+  liveQuotesByInstrumentId?: Map<string, { price: string }>,
 ): Record<string, unknown> {
   const startValue = snapshots.length > 0 ? snapshots[0]!.totalValue : ZERO;
-  const endValue = snapshots.length > 0 ? snapshots[snapshots.length - 1]!.totalValue : ZERO;
+
+  // Recompute endValue from latest quotes when available (fixes stale snapshot values)
+  let endValue = snapshots.length > 0 ? snapshots[snapshots.length - 1]!.totalValue : ZERO;
+  let liveUnrealizedPnl = snapshots.length > 0 ? snapshots[snapshots.length - 1]!.unrealizedPnl : ZERO;
+
+  if (liveQuotesByInstrumentId && liveQuotesByInstrumentId.size > 0 && snapshots.length > 0) {
+    const lastSnapshot = snapshots[snapshots.length - 1]!;
+    const holdingsJson = lastSnapshot.holdingsJson as Record<string, HoldingSnapshotEntry>;
+    const instrumentMap = new Map<string, Instrument>();
+    for (const inst of instruments) {
+      instrumentMap.set(inst.symbol, inst);
+    }
+
+    let recomputedTotal = ZERO;
+    let recomputedCostBasis = ZERO;
+    for (const [symbol, entry] of Object.entries(holdingsJson)) {
+      const inst = instrumentMap.get(symbol);
+      const quote = inst ? liveQuotesByInstrumentId.get(inst.id) : undefined;
+      const livePrice = quote ? toDecimal(quote.price) : null;
+      const currentValue = livePrice ? entry.qty.times(livePrice) : entry.value;
+      recomputedTotal = add(recomputedTotal, currentValue);
+      recomputedCostBasis = add(recomputedCostBasis, entry.costBasis);
+    }
+    endValue = recomputedTotal;
+    liveUnrealizedPnl = sub(recomputedTotal, recomputedCostBasis);
+  }
+
   const absoluteChange = sub(endValue, startValue);
   const percentageChange = isZero(startValue)
     ? ZERO
@@ -135,9 +162,7 @@ function buildResponseFromSnapshots(
     realizedPnlInWindow = add(realizedPnlInWindow, computeRealizedPnL(windowTrades));
   }
 
-  const unrealizedPnlAtEnd = snapshots.length > 0
-    ? snapshots[snapshots.length - 1]!.unrealizedPnl
-    : ZERO;
+  const unrealizedPnlAtEnd = liveUnrealizedPnl;
 
   // Build holdings from last snapshot
   const instrumentMap = new Map<string, Instrument>();
@@ -235,9 +260,10 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
     }
 
-    const [prismaInstruments, prismaTransactions] = await Promise.all([
+    const [prismaInstruments, prismaTransactions, prismaQuotes] = await Promise.all([
       prisma.instrument.findMany(),
       prisma.transaction.findMany({ orderBy: { tradeAt: 'asc' } }),
+      prisma.latestQuote.findMany(),
     ]);
 
     if (prismaTransactions.length === 0) {
@@ -261,15 +287,24 @@ export async function GET(request: NextRequest): Promise<Response> {
     const instruments = prismaInstruments.map(toSharedInstrument);
     const transactions = prismaTransactions.map(toSharedTransaction);
 
+    // Build live quote lookup by instrumentId (most recent per instrument)
+    const liveQuotesByInstrumentId = new Map<string, { price: string }>();
+    for (const q of prismaQuotes) {
+      const existing = liveQuotesByInstrumentId.get(q.instrumentId);
+      if (!existing) {
+        liveQuotesByInstrumentId.set(q.instrumentId, { price: q.price.toString() });
+      }
+    }
+
     const snapshotStore = new PrismaSnapshotStore(prisma);
 
     // AD-S10b: GET is strictly read-only. No writes to the database.
     const cachedSnapshots = await snapshotStore.getRange(startDateStr, endDateStr);
 
     if (cachedSnapshots.length > 0) {
-      // Read-only path: use cached snapshots, compute derived fields from transactions
+      // Read-only path: use cached snapshots, recompute endValue with live quotes
       return Response.json(
-        buildResponseFromSnapshots(cachedSnapshots, transactions, instruments, startDateStr, endDateStr),
+        buildResponseFromSnapshots(cachedSnapshots, transactions, instruments, startDateStr, endDateStr, liveQuotesByInstrumentId),
       );
     }
 

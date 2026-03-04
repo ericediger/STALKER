@@ -75,6 +75,8 @@ function PortfolioPageContent() {
           costBasis: "0",
           unrealizedPnl: "0",
           unrealizedPnlPct: "0",
+          dayChange: null,
+          dayChangePct: null,
           allocation: "0",
           firstBuyDate: null,
         }));
